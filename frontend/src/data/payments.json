@@ -1,0 +1,56 @@
+{
+  "promoCodes": [
+    {
+      "code": "SKY10",
+      "type": "percentage",
+      "value": 10,
+      "message": "SKY10 applied. You saved 10% on this booking."
+    },
+    {
+      "code": "HOTEL750",
+      "type": "fixed",
+      "value": 750,
+      "message": "HOTEL750 applied. You saved Rs. 750."
+    },
+    {
+      "code": "FLY500",
+      "type": "fixed",
+      "value": 500,
+      "message": "FLY500 applied. You saved Rs. 500."
+    }
+  ],
+  "validUpiSamples": ["traveller@upi", "skyjourney@okaxis", "demo@ybl"],
+  "cardRules": {
+    "validPrefixes": ["4", "5", "6"],
+    "cardNumberLength": 16,
+    "cvvLength": 3,
+    "otpLength": 6,
+    "validOtp": "123456"
+  },
+  "bankNames": [
+    "HDFC Bank",
+    "ICICI Bank",
+    "State Bank of India",
+    "Axis Bank",
+    "Kotak Mahindra Bank",
+    "Yes Bank"
+  ],
+  "samplePayments": [
+    {
+      "id": "PY-4001",
+      "bookingId": "BK-3001",
+      "method": "card",
+      "status": "success",
+      "amount": 6200,
+      "paidAt": "2026-05-12T10:15:00Z"
+    },
+    {
+      "id": "PY-4002",
+      "bookingId": "BK-3002",
+      "method": "upi",
+      "status": "success",
+      "amount": 15200,
+      "paidAt": "2026-05-14T16:42:00Z"
+    }
+  ]
+}
