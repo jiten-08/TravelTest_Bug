@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import AuthLayout from '../components/AuthLayout.jsx';
 import Button from '../components/Button.jsx';
 import Card from '../components/Card.jsx';
@@ -30,6 +30,7 @@ function validateLogin(form) {
 
 function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
@@ -75,7 +76,8 @@ function LoginPage() {
 
     localStorage.setItem('traveltest_user_session', JSON.stringify(session));
     localStorage.setItem('traveltest_access_token', `fake-jwt-token-${user.id}`);
-    navigate('/');
+    const from = location.state?.from || '/';
+    navigate(from, { replace: true });
   };
 
   return (

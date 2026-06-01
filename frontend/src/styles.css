@@ -5,8 +5,15 @@
 @tailwind utilities;
 
 :root {
-  color: #0F172A;
-  background: #F8FAFC;
+  --color-foreground: #0F172A;
+  --color-background: #F8FAFC;
+  --primary-500: #4b6cff;
+  --primary-600: #3b55e6;
+  --accent-500: #ff7a4b;
+  --muted-400: #94a3b8;
+
+  color: var(--color-foreground);
+  background: var(--color-background);
   font-family: 'Poppins', system-ui, sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -14,11 +21,16 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+html { font-size: 16px; }
+
 body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
-  background: #F8FAFC;
+  background: var(--color-background);
+  font-size: 1rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
 }
 
 h1,
@@ -44,11 +56,11 @@ textarea {
 
 select,
 .travel-select {
-  @apply w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-950 shadow-sm transition-all hover:border-primary-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+  @apply w-full rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-950 shadow-sm transition-all hover:shadow-md focus:outline-none;
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 8l4 4 4-4' stroke='%234b6cff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 8l4 4 4-4' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"), linear-gradient(90deg, rgba(75,108,255,0.08), rgba(75,108,255,0.02));
   background-repeat: no-repeat;
   background-position: right 1rem center;
   background-size: 1rem;
@@ -65,5 +77,18 @@ select::-ms-expand,
 }
 
 .travel-field {
-  @apply w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-950 shadow-sm transition-all placeholder:text-slate-400 hover:border-primary-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+  @apply w-full rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-950 shadow-sm transition-all placeholder:text-slate-400 hover:shadow-sm focus:outline-none;
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-2xl px-6 py-3 text-sm font-semibold text-white;
+    background: linear-gradient(90deg,var(--primary-600),#5a73ff);
+    box-shadow: 0 8px 24px rgba(59,85,230,0.12);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .btn-primary:active { transform: translateY(1px); }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-medium bg-white border border-slate-200 shadow-sm;
+  }
 }

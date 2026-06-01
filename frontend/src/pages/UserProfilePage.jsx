@@ -4,6 +4,7 @@ import Button from '../components/Button.jsx';
 import Badge from '../components/Badge.jsx';
 import users from '../data/users.json';
 import images from '../data/images.js';
+import FancySelect from '../components/FancySelect.jsx';
 
 function getJson(key) {
   const value = localStorage.getItem(key);
@@ -125,12 +126,14 @@ function UserProfilePage() {
               </label>
               <label className="block">
                 <span className="text-sm font-semibold text-slate-700">Gender</span>
-                <select name="gender" value={form.gender} onChange={updateField} className="travel-select mt-2" data-testid="profile-gender-select">
-                  <option value="">Select gender</option>
-                  <option value="female">Female</option>
-                  <option value="male">Male</option>
-                  <option value="other">Other</option>
-                </select>
+                <FancySelect
+                  id="profile-gender-select"
+                  name="gender"
+                  value={form.gender}
+                  onChange={updateField}
+                  options={[{ value: '', label: 'Select gender' }, { value: 'female', label: 'Female' }, { value: 'male', label: 'Male' }, { value: 'other', label: 'Other' }]}
+                  data-testid="profile-gender-select"
+                />
               </label>
             </div>
             {successMessage ? <p className="mt-4 text-sm font-semibold text-green-700">{successMessage}</p> : null}

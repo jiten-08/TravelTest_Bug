@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Badge from '../components/Badge.jsx';
 import Button from '../components/Button.jsx';
 import payments from '../data/payments.json';
 import images from '../data/images.js';
+import FancySelect from '../components/FancySelect.jsx';
 
 const initialCardForm = {
   cardNumber: '',
@@ -27,6 +28,60 @@ function calculateNights(searchDetails) {
   const checkOut = new Date(searchDetails.checkOutDate);
   const diff = Math.round((checkOut - checkIn) / (1000 * 60 * 60 * 24));
   return diff > 0 ? diff : 1;
+}
+
+const defaultHotelRoomOptions = [
+  {
+    id: 'standard',
+    label: 'Standard Room',
+    description: 'Essential amenities and comfortable stay.',
+    priceOffset: 0,
+    defaultAvailable: 8,
+  },
+  {
+    id: 'deluxe',
+    label: 'Deluxe Room',
+    description: 'Spacious room with premium bedding and views.',
+    priceOffset: 1600,
+    defaultAvailable: 4,
+  },
+  {
+    id: 'luxury',
+    label: 'Luxury Room',
+    description: 'A suite with premium perks and extra space.',
+    priceOffset: 3000,
+    defaultAvailable: 2,
+  },
+];
+
+function getHotelInventory(hotelId) {
+  const storageKey = 'traveltest_hotel_inventory';
+  const storedInventory = getStoredJson(storageKey) || {};
+  if (!hotelId) {
+    return {};
+  }
+
+  const defaultInventory = defaultHotelRoomOptions.reduce(
+    (inventory, room) => ({ ...inventory, [room.id]: room.defaultAvailable }),
+    {},
+  );
+
+  if (!storedInventory[hotelId]) {
+    storedInventory[hotelId] = defaultInventory;
+    localStorage.setItem(storageKey, JSON.stringify(storedInventory));
+  }
+
+  return storedInventory[hotelId];
+}
+
+function decrementHotelInventory(hotelId, roomTypeId, quantity = 1) {
+  const storageKey = 'traveltest_hotel_inventory';
+  const storedInventory = getStoredJson(storageKey) || {};
+  const hotelInventory = storedInventory[hotelId] || getHotelInventory(hotelId);
+  hotelInventory[roomTypeId] = Math.max(0, (hotelInventory[roomTypeId] || 0) - quantity);
+  storedInventory[hotelId] = hotelInventory;
+  localStorage.setItem(storageKey, JSON.stringify(storedInventory));
+  return hotelInventory;
 }
 
 function validateCard(form) {
@@ -69,6 +124,7 @@ function validateCard(form) {
 
 function PaymentPlaceholderPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const selectedFlight = getStoredJson('traveltest_selected_flight');
   const selectedHotel = getStoredJson('traveltest_selected_hotel');
   const selectedSeats = getStoredJson('traveltest_selected_seats') || [];
@@ -88,18 +144,108 @@ function PaymentPlaceholderPage() {
   const [discount, setDiscount] = useState(0);
   const [promoMessage, setPromoMessage] = useState('');
   const [promoError, setPromoError] = useState('');
+  const [selectedRoomTypeId, setSelectedRoomTypeId] = useState('');
   const [errors, setErrors] = useState({});
   const [successMessage, setSuccessMessage] = useState('');
+
+  const hotelRoomTypes = useMemo(() => {
+    if (bookingType !== 'hotel' || !bookingItem) {
+      return [];
+    }
+
+    const hotelInventory = getHotelInventory(bookingItem.id);
+    const basePrice = bookingItem.pricePerNight || 0;
+
+    return defaultHotelRoomOptions.map((room) => ({
+      ...room,
+      available: hotelInventory[room.id] ?? room.defaultAvailable,
+      price: basePrice + room.priceOffset,
+    }));
+  }, [bookingItem, bookingType]);
+
+  const selectedRoomType = hotelRoomTypes.find((room) => room.id === selectedRoomTypeId);
+  const selectedRoomPrice = selectedRoomType?.price ?? bookingItem?.pricePerNight ?? 0;
+
+  useEffect(() => {
+    if (!userSession) {
+      navigate('/login', { state: { from: location.pathname + location.search } });
+    }
+  }, [userSession, navigate, location.pathname, location.search]);
+
+  useEffect(() => {
+    if (bookingType !== 'hotel') {
+      return;
+    }
+
+    const roomsRequested = Number(searchDetails?.rooms || 1);
+    const availableRoomType = hotelRoomTypes.find((room) => room.available >= roomsRequested);
+
+    if (!selectedRoomTypeId && availableRoomType) {
+      setSelectedRoomTypeId(availableRoomType.id);
+    }
+
+    if (selectedRoomTypeId && !hotelRoomTypes.some((room) => room.id === selectedRoomTypeId && room.available >= roomsRequested)) {
+      setSelectedRoomTypeId(availableRoomType?.id || '');
+    }
+  }, [bookingType, hotelRoomTypes, searchDetails?.rooms, selectedRoomTypeId]);
 
   const amounts = useMemo(() => {
     const baseAmount =
       bookingType === 'hotel'
-        ? (bookingItem?.pricePerNight || 0) * calculateNights(searchDetails) * Number(searchDetails?.rooms || 1)
+        ? selectedRoomPrice * calculateNights(searchDetails) * Number(searchDetails?.rooms || 1)
         : (bookingItem?.price || 0) + Number(seatSummary.seatCharges || 0);
     const taxesAndFees = Math.round(baseAmount * 0.12 + 299);
     const finalPayable = Math.max(baseAmount + taxesAndFees - discount, 0);
     return { baseAmount, taxesAndFees, finalPayable };
-  }, [bookingItem, bookingType, discount, searchDetails, seatSummary.seatCharges]);
+  }, [bookingItem, bookingType, discount, searchDetails, seatSummary.seatCharges, selectedRoomPrice]);
+
+function getPromoDiscount(promo, baseAmount) {
+  if (promo.type === 'percentage') {
+    return Math.round((baseAmount * promo.value) / 100);
+  }
+
+  if (promo.type === 'fixed') {
+    return promo.value;
+  }
+
+  if (promo.type === 'tiered') {
+    const selectedTier = [...promo.tiers]
+      .sort((a, b) => b.minAmount - a.minAmount)
+      .find((tier) => baseAmount >= tier.minAmount);
+    if (!selectedTier) {
+      return 0;
+    }
+    return selectedTier.type === 'percentage'
+      ? Math.round((baseAmount * selectedTier.value) / 100)
+      : selectedTier.value;
+  }
+
+  return 0;
+}
+
+function getPromoDescription(promo) {
+  if (promo.type === 'percentage') {
+    return `${promo.value}% off this booking`;
+  }
+
+  if (promo.type === 'fixed') {
+    return `Save Rs. ${promo.value.toLocaleString('en-IN')}`;
+  }
+
+  if (promo.type === 'tiered') {
+    const highestTier = promo.tiers.reduce((prev, next) => (next.value > prev.value ? next : prev), promo.tiers[0]);
+    return `Up to ${highestTier.value}% off based on booking amount`;
+  }
+
+  return '';
+}
+
+function formatPromoMessage(promo, discountAmount) {
+  if (promo.message.includes('{discount}')) {
+    return promo.message.replace('{discount}', discountAmount.toLocaleString('en-IN'));
+  }
+  return promo.message;
+}
 
   const updateCardField = (event) => {
     const { name, value } = event.target;
@@ -107,10 +253,11 @@ function PaymentPlaceholderPage() {
     setErrors((current) => ({ ...current, [name]: '' }));
   };
 
-  const applyPromo = () => {
-    const enteredCode = promoCode.trim().toUpperCase();
+  const applyPromo = (code = promoCode) => {
+    const enteredCode = code.trim().toUpperCase();
     const promo = payments.promoCodes.find((item) => item.code === enteredCode);
 
+    setPromoCode(enteredCode);
     setPromoMessage('');
     setPromoError('');
 
@@ -125,10 +272,15 @@ function PaymentPlaceholderPage() {
       return;
     }
 
-    const discountAmount =
-      promo.type === 'percentage' ? Math.round((amounts.baseAmount * promo.value) / 100) : promo.value;
+    if (promo.minAmount && amounts.baseAmount < promo.minAmount) {
+      setDiscount(0);
+      setPromoError(`Spend Rs. ${promo.minAmount.toLocaleString('en-IN')} or more to use ${enteredCode}.`);
+      return;
+    }
+
+    const discountAmount = getPromoDiscount(promo, amounts.baseAmount);
     setDiscount(Math.min(discountAmount, amounts.baseAmount));
-    setPromoMessage(promo.message);
+    setPromoMessage(formatPromoMessage(promo, discountAmount));
   };
 
   const validatePayment = () => {
@@ -150,6 +302,23 @@ function PaymentPlaceholderPage() {
       }
     }
 
+    if (bookingType === 'hotel') {
+      if (!selectedRoomTypeId) {
+        return { roomType: 'Select a room type before payment.' };
+      }
+
+      const roomsRequested = Number(searchDetails?.rooms || 1);
+      if (!selectedRoomType) {
+        return { roomType: 'Selected room type is not available.' };
+      }
+
+      if (selectedRoomType.available < roomsRequested) {
+        return {
+          roomType: `Only ${selectedRoomType.available} ${selectedRoomType.label} left. Change room type or reduce rooms.`,
+        };
+      }
+    }
+
     if (activeMethod === 'netbanking' && !selectedBank) {
       return { bank: 'Select a bank.' };
     }
@@ -166,11 +335,18 @@ function PaymentPlaceholderPage() {
     }
 
     const bookingId = `BK-${Date.now()}`;
+    if (bookingType === 'hotel' && selectedRoomType) {
+      decrementHotelInventory(bookingItem.id, selectedRoomTypeId, Number(searchDetails?.rooms || 1));
+    }
+
     const booking = {
       bookingId,
       bookingType,
       item: bookingItem,
       searchDetails,
+      selectedRoomType: selectedRoomType?.label || null,
+      selectedRoomTypeId: selectedRoomTypeId || null,
+      selectedRoomPrice,
       selectedSeats,
       seatSummary,
       customer: userSession || null,
@@ -390,23 +566,17 @@ function PaymentPlaceholderPage() {
                 <label className="block text-sm font-semibold text-slate-700" htmlFor="payment-bank-dropdown">
                   Select bank
                 </label>
-                <select
+                <FancySelect
                   id="payment-bank-dropdown"
+                  name="paymentBank"
                   value={selectedBank}
-                  onChange={(event) => {
-                    setSelectedBank(event.target.value);
+                  onChange={(e) => {
+                    setSelectedBank(e.target.value);
                     setErrors((current) => ({ ...current, bank: '' }));
                   }}
-                  className="travel-select mt-2"
+                  options={[{ value: '', label: 'Choose bank' }, ...payments.bankNames.map((b) => ({ value: b, label: b }))]}
                   data-testid="payment-bank-dropdown"
-                >
-                  <option value="">Choose bank</option>
-                  {payments.bankNames.map((bank) => (
-                    <option key={bank} value={bank}>
-                      {bank}
-                    </option>
-                  ))}
-                </select>
+                />
                 {errors.bank ? (
                   <p className="mt-2 text-sm font-semibold text-red-600" data-testid="bank-validation-message">
                     {errors.bank}
@@ -467,6 +637,48 @@ function PaymentPlaceholderPage() {
               </p>
             )}
 
+            {bookingType === 'hotel' ? (
+              <div className="mt-5 rounded-3xl border border-slate-100 bg-slate-50 p-5">
+                <p className="text-sm font-semibold text-slate-700">Choose room type</p>
+                <div className="mt-4 grid gap-3">
+                  {hotelRoomTypes.map((room) => {
+                    const roomsRequested = Number(searchDetails?.rooms || 1);
+                    const isDisabled = room.available < roomsRequested;
+                    return (
+                      <button
+                        type="button"
+                        key={room.id}
+                        onClick={() => !isDisabled && setSelectedRoomTypeId(room.id)}
+                        disabled={isDisabled}
+                        className={`w-full rounded-3xl border px-4 py-4 text-left transition-all ${
+                          selectedRoomTypeId === room.id ? 'border-primary-600 bg-primary-50' : 'border-slate-200 bg-white hover:border-slate-300'
+                        } ${isDisabled ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
+                        data-testid={`hotel-room-option-${room.id}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-bold text-slate-950">{room.label}</p>
+                            <p className="mt-1 text-xs text-slate-500">{room.description}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-semibold text-slate-900">Rs. {room.price.toLocaleString('en-IN')}</p>
+                            <p className={`mt-1 text-xs font-semibold ${room.available === 0 ? 'text-red-600' : 'text-slate-500'}`}>
+                              {room.available === 0 ? 'Not available' : `${room.available} rooms left`}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {errors.roomType ? (
+                  <p className="mt-3 text-sm font-semibold text-red-600" data-testid="hotel-room-type-error">
+                    {errors.roomType}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className="mt-5 border-t border-slate-100 pt-5">
               <label className="block text-sm font-semibold text-slate-700" htmlFor="payment-promo-input">
                 Promo code
@@ -477,6 +689,7 @@ function PaymentPlaceholderPage() {
                   value={promoCode}
                   onChange={(event) => {
                     setPromoCode(event.target.value);
+                    setDiscount(0);
                     setPromoMessage('');
                     setPromoError('');
                   }}
@@ -503,6 +716,26 @@ function PaymentPlaceholderPage() {
                   {promoError}
                 </p>
               ) : null}
+              <div className="mt-4 grid gap-3" data-testid="available-coupons-list">
+                {payments.promoCodes.slice(0, 3).map((promo) => (
+                  <div key={promo.code} className="flex items-center justify-between gap-3 rounded-2xl border border-dashed border-primary-200 bg-primary-50 p-3">
+                    <div>
+                      <p className="text-sm font-bold text-slate-950">{promo.code}</p>
+                      <p className="mt-1 text-xs font-semibold text-slate-500">
+                        {getPromoDescription(promo)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => applyPromo(promo.code)}
+                      className="rounded-xl bg-white px-3 py-2 text-xs font-bold text-primary-700 shadow-sm hover:bg-primary-600 hover:text-white focus-ring"
+                      data-testid={`apply-coupon-${promo.code.toLowerCase()}`}
+                    >
+                      Apply
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="mt-5 space-y-3 border-t border-slate-100 pt-5">

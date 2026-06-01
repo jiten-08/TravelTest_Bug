@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../components/Button.jsx';
 import Card from '../components/Card.jsx';
+import FancySelect from '../components/FancySelect.jsx';
 import hotels from '../data/hotels.json';
 import images from '../data/images.js';
 
@@ -202,20 +203,15 @@ function HotelSearchPage() {
               <label className="block text-sm font-bold text-slate-700" htmlFor="hotel-guests-selector">
                 Guests
               </label>
-              <select
+              <FancySelect
                 id="hotel-guests-selector"
                 name="guests"
                 value={form.guests}
                 onChange={updateField}
-                className="travel-select mt-2"
+                className="mt-2"
+                options={[{ value: '', label: 'Select guests' }, ...[1, 2, 3, 4, 5, 6].map((n) => ({ value: String(n), label: `${n} ${n === 1 ? 'guest' : 'guests'}` }))]}
                 data-testid="hotel-guests-selector"
-              >
-                {[1, 2, 3, 4, 5, 6].map((guestCount) => (
-                  <option key={guestCount} value={guestCount}>
-                    {guestCount} {guestCount === 1 ? 'guest' : 'guests'}
-                  </option>
-                ))}
-              </select>
+              />
               {errors.guests ? (
                 <p className="mt-2 text-sm font-semibold text-red-600" data-testid="hotel-guests-validation-message">
                   {errors.guests}
@@ -227,20 +223,15 @@ function HotelSearchPage() {
               <label className="block text-sm font-bold text-slate-700" htmlFor="hotel-rooms-selector">
                 Rooms
               </label>
-              <select
+              <FancySelect
                 id="hotel-rooms-selector"
                 name="rooms"
                 value={form.rooms}
                 onChange={updateField}
-                className="travel-select mt-2"
+                className="mt-2"
+                options={[{ value: '', label: 'Select rooms' }, ...[1, 2, 3, 4].map((n) => ({ value: String(n), label: `${n} ${n === 1 ? 'room' : 'rooms'}` }))]}
                 data-testid="hotel-rooms-selector"
-              >
-                {[1, 2, 3, 4].map((roomCount) => (
-                  <option key={roomCount} value={roomCount}>
-                    {roomCount} {roomCount === 1 ? 'room' : 'rooms'}
-                  </option>
-                ))}
-              </select>
+              />
               {errors.rooms ? (
                 <p className="mt-2 text-sm font-semibold text-red-600" data-testid="hotel-rooms-validation-message">
                   {errors.rooms}

@@ -3,15 +3,40 @@ import Badge from '../components/Badge.jsx';
 import Button from '../components/Button.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import LoadingSpinner from '../components/LoadingSpinner.jsx';
+import FancySelect from '../components/FancySelect.jsx';
 import sampleBookings from '../data/bookings.json';
 import flights from '../data/flights.json';
 import hotels from '../data/hotels.json';
 import images from '../data/images.js';
 import users from '../data/users.json';
 
+function getStoredJson(key) {
+  const value = localStorage.getItem(key);
+  return value ? JSON.parse(value) : null;
+}
+
+function saveLocalBookings(bookings) {
+  localStorage.setItem('traveltest_booking_history', JSON.stringify(bookings));
+}
+
 function readLocalBookings() {
   const value = localStorage.getItem('traveltest_booking_history');
   return value ? JSON.parse(value) : [];
+}
+
+function getHotelInventory(hotelId) {
+  const storedInventory = getStoredJson('traveltest_hotel_inventory') || {};
+  return storedInventory[hotelId] || {};
+}
+
+function updateHotelInventory(hotelId, roomTypeId, quantityChange) {
+  const storageKey = 'traveltest_hotel_inventory';
+  const storedInventory = getStoredJson(storageKey) || {};
+  const hotelInventory = storedInventory[hotelId] || {};
+  hotelInventory[roomTypeId] = Math.max(0, (hotelInventory[roomTypeId] || 0) + quantityChange);
+  storedInventory[hotelId] = hotelInventory;
+  localStorage.setItem(storageKey, JSON.stringify(storedInventory));
+  return hotelInventory;
 }
 
 function formatDate(value) {
@@ -50,6 +75,7 @@ function normalizeLocalBooking(booking) {
     paymentMethod: booking.paymentMethod || 'sample',
     item,
     searchDetails: booking.searchDetails || {},
+    selectedRoomTypeId: booking.selectedRoomTypeId || null,
     source: 'local',
   };
 }
@@ -93,9 +119,96 @@ function getTravelDateForSort(booking) {
   return booking.travelDate || booking.bookingDateTime;
 }
 
+function SelectedBookingItem({ booking }) {
+  const item = booking.item || {};
+
+  if (booking.bookingType === 'flight') {
+    return (
+      <div className="rounded-2xl bg-slate-50 p-5 md:col-span-2" data-testid="selected-flight-details-card">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Selected flight</p>
+            <h3 className="mt-1 font-heading text-xl font-bold text-slate-950">
+              {item.airline || 'Flight'} {item.flightNumber ? `| ${item.flightNumber}` : ''}
+            </h3>
+            <p className="mt-2 text-sm font-semibold text-slate-500">
+              {item.travelClass || booking.searchDetails?.travelClass || 'Travel class not available'}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-white px-4 py-3 text-right shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Fare</p>
+            <p className="mt-1 text-lg font-bold text-slate-950">
+              Rs. {Number(item.price || booking.amountPaid || 0).toLocaleString('en-IN')}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl bg-white p-4 shadow-sm">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{item.source || booking.searchDetails?.source || 'From'}</p>
+            <p className="mt-1 text-2xl font-bold text-slate-950">
+              {(item.source || booking.searchDetails?.source || '---').slice(0, 3).toUpperCase()}
+            </p>
+            <p className="mt-1 text-xs font-semibold text-slate-500">{item.departureTime || 'Time not available'}</p>
+          </div>
+          <div className="flex min-w-[120px] flex-col items-center">
+            <span className="text-xs font-bold text-slate-400">{item.duration || 'Direct'}</span>
+            <div className="my-3 flex w-full items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-slate-300" />
+              <span className="h-px flex-1 border-t border-dashed border-slate-300" />
+              <span className="rounded-full bg-slate-950 px-2 py-1 text-[10px] font-bold text-white">AIR</span>
+              <span className="h-px flex-1 border-t border-dashed border-slate-300" />
+              <span className="h-2 w-2 rounded-full bg-slate-300" />
+            </div>
+            <span className="text-xs font-semibold text-slate-500">Direct route</span>
+          </div>
+          <div className="text-right">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{item.destination || booking.destination || 'To'}</p>
+            <p className="mt-1 text-2xl font-bold text-slate-950">
+              {(item.destination || booking.destination || '---').slice(0, 3).toUpperCase()}
+            </p>
+            <p className="mt-1 text-xs font-semibold text-slate-500">{item.arrivalTime || 'Time not available'}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl bg-slate-50 p-5 md:col-span-2" data-testid="selected-hotel-details-card">
+      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Selected hotel</p>
+      <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="font-heading text-xl font-bold text-slate-950">{item.name || 'Hotel'}</h3>
+          <p className="mt-2 text-sm text-slate-600">{item.city || booking.destination || 'City not available'}</p>
+          <p className="mt-2 text-xs font-bold uppercase tracking-wide text-slate-400">{item.address || 'Address not available'}</p>
+        </div>
+        <div className="rounded-2xl bg-white px-4 py-3 text-right shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Per night</p>
+          <p className="mt-1 text-lg font-bold text-slate-950">
+            Rs. {Number(item.pricePerNight || 0).toLocaleString('en-IN')}
+          </p>
+        </div>
+      </div>
+      {item.amenities?.length ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {item.amenities.map((amenity) => (
+            <span key={amenity} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">
+              {amenity}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function BookingHistoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState(null);
+  const [receiptBooking, setReceiptBooking] = useState(null);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [bookings, setBookings] = useState([]);
   const [typeFilter, setTypeFilter] = useState('all');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('all');
   const [bookingStatusFilter, setBookingStatusFilter] = useState('all');
@@ -107,10 +220,63 @@ function BookingHistoryPage() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  const bookings = useMemo(() => {
+  useEffect(() => {
+    if (!successMessage) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => setSuccessMessage(''), 4000);
+    return () => window.clearTimeout(timer);
+  }, [successMessage]);
+
+  useEffect(() => {
     const localBookings = readLocalBookings();
-    return localBookings.length > 0 ? localBookings.map(normalizeLocalBooking) : sampleBookings.map(normalizeSampleBooking);
+    if (localBookings.length > 0) {
+      setBookings(localBookings.map(normalizeLocalBooking));
+      return;
+    }
+
+    setBookings(sampleBookings.map(normalizeSampleBooking));
   }, []);
+
+  function handleCancelBooking(bookingId) {
+    const currentBookings = bookings.length > 0 ? bookings : [];
+    const bookingToCancel = currentBookings.find((booking) => booking.id === bookingId);
+    if (!bookingToCancel || bookingToCancel.bookingStatus === 'cancelled') {
+      return;
+    }
+
+    const confirmed = window.confirm('Are you sure you want to cancel this booking?');
+    if (!confirmed) {
+      return;
+    }
+
+    const updatedBooking = { ...bookingToCancel, bookingStatus: 'cancelled' };
+    const nextBookings = currentBookings.map((booking) => (booking.id === bookingId ? updatedBooking : booking));
+    setBookings(nextBookings);
+    if (selectedBooking?.id === bookingId) {
+      setSelectedBooking(updatedBooking);
+    }
+    if (receiptBooking?.id === bookingId) {
+      setReceiptBooking(updatedBooking);
+    }
+    setSuccessMessage('Booking cancelled successfully. Any released hotel room inventory has been restored.');
+
+    const localBookings = readLocalBookings();
+    const persistedBookings = localBookings.length > 0 ? localBookings : sampleBookings.map((booking) => normalizeSampleBooking(booking));
+    const updatedPersisted = persistedBookings.map((booking) =>
+      booking.id === bookingId ? { ...booking, bookingStatus: 'cancelled' } : booking,
+    );
+    saveLocalBookings(updatedPersisted);
+
+    if (bookingToCancel.bookingType === 'hotel' && bookingToCancel.selectedRoomTypeId) {
+      updateHotelInventory(
+        bookingToCancel.item.id,
+        bookingToCancel.selectedRoomTypeId,
+        Number(bookingToCancel.searchDetails?.rooms || 1),
+      );
+    }
+  }
 
   const filteredBookings = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -187,46 +353,41 @@ function BookingHistoryPage() {
         <div className="mb-6 grid gap-4 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm lg:grid-cols-5">
           <label className="block">
             <span className="text-sm font-semibold text-slate-700">Booking type</span>
-            <select
+            <FancySelect
+              id="booking-type-filter"
+              name="bookingType"
               value={typeFilter}
-              onChange={(event) => setTypeFilter(event.target.value)}
-              className="travel-select mt-2"
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="mt-2"
+              options={[{ value: 'all', label: 'All' }, { value: 'flight', label: 'Flight' }, { value: 'hotel', label: 'Hotel' }]}
               data-testid="booking-type-filter"
-            >
-              <option value="all">All</option>
-              <option value="flight">Flight</option>
-              <option value="hotel">Hotel</option>
-            </select>
+            />
           </label>
 
           <label className="block">
             <span className="text-sm font-semibold text-slate-700">Payment status</span>
-            <select
+            <FancySelect
+              id="payment-status-filter"
+              name="paymentStatus"
               value={paymentStatusFilter}
-              onChange={(event) => setPaymentStatusFilter(event.target.value)}
-              className="travel-select mt-2"
+              onChange={(e) => setPaymentStatusFilter(e.target.value)}
+              className="mt-2"
+              options={[{ value: 'all', label: 'All' }, { value: 'success', label: 'Success' }, { value: 'pending', label: 'Pending' }, { value: 'failed', label: 'Failed' }]}
               data-testid="payment-status-filter"
-            >
-              <option value="all">All</option>
-              <option value="success">Success</option>
-              <option value="pending">Pending</option>
-              <option value="failed">Failed</option>
-            </select>
+            />
           </label>
 
           <label className="block">
             <span className="text-sm font-semibold text-slate-700">Booking status</span>
-            <select
+            <FancySelect
+              id="booking-status-filter"
+              name="bookingStatus"
               value={bookingStatusFilter}
-              onChange={(event) => setBookingStatusFilter(event.target.value)}
-              className="travel-select mt-2"
+              onChange={(e) => setBookingStatusFilter(e.target.value)}
+              className="mt-2"
+              options={[{ value: 'all', label: 'All' }, { value: 'confirmed', label: 'Confirmed' }, { value: 'pending', label: 'Pending' }, { value: 'cancelled', label: 'Cancelled' }]}
               data-testid="booking-status-filter"
-            >
-              <option value="all">All</option>
-              <option value="confirmed">Confirmed</option>
-              <option value="pending">Pending</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
+            />
           </label>
 
           <label className="block">
@@ -242,21 +403,30 @@ function BookingHistoryPage() {
 
           <label className="block">
             <span className="text-sm font-semibold text-slate-700">Sort</span>
-            <select
+            <FancySelect
+              id="booking-sort-dropdown"
+              name="bookingSort"
               value={sortBy}
-              onChange={(event) => setSortBy(event.target.value)}
-              className="travel-select mt-2"
+              onChange={(e) => setSortBy(e.target.value)}
+              className="mt-2"
+              options={[
+                { value: 'booking-date-desc', label: 'Booking date: newest' },
+                { value: 'booking-date-asc', label: 'Booking date: oldest' },
+                { value: 'amount-desc', label: 'Amount: high to low' },
+                { value: 'amount-asc', label: 'Amount: low to high' },
+                { value: 'upcoming-first', label: 'Upcoming first' },
+                { value: 'past-first', label: 'Past first' },
+              ]}
               data-testid="booking-sort-dropdown"
-            >
-              <option value="booking-date-desc">Booking date: newest</option>
-              <option value="booking-date-asc">Booking date: oldest</option>
-              <option value="amount-desc">Amount: high to low</option>
-              <option value="amount-asc">Amount: low to high</option>
-              <option value="upcoming-first">Upcoming first</option>
-              <option value="past-first">Past first</option>
-            </select>
+            />
           </label>
         </div>
+
+        {successMessage ? (
+          <div className="mb-6 rounded-3xl border border-green-200 bg-green-50 px-5 py-4 text-sm font-semibold text-green-700 shadow-sm" data-testid="booking-cancel-success-message">
+            {successMessage}
+          </div>
+        ) : null}
 
         {isLoading ? (
           <div className="rounded-3xl border border-slate-100 bg-white shadow-sm" data-testid="booking-history-loading-spinner">
@@ -297,10 +467,12 @@ function BookingHistoryPage() {
                         <Badge className="bg-green-50 text-green-700">{booking.paymentStatus}</Badge>
                       </td>
                       <td className="px-4 py-4">
-                        <Badge>{booking.bookingStatus}</Badge>
+                        <Badge className={booking.bookingStatus === 'cancelled' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}>
+                          {booking.bookingStatus}
+                        </Badge>
                       </td>
                       <td className="px-4 py-4">
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
                             onClick={() => setSelectedBooking(booking)}
@@ -311,10 +483,20 @@ function BookingHistoryPage() {
                           </button>
                           <button
                             type="button"
+                            onClick={() => setReceiptBooking(booking)}
                             className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 focus-ring"
                             data-testid={`download-receipt-button-${booking.id}`}
                           >
                             Receipt
+                          </button>
+                          <button
+                            type="button"
+                            disabled={booking.bookingStatus === 'cancelled'}
+                            onClick={() => handleCancelBooking(booking.id)}
+                            className="rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 focus-ring disabled:cursor-not-allowed disabled:opacity-60"
+                            data-testid={`cancel-booking-button-${booking.id}`}
+                          >
+                            Cancel
                           </button>
                         </div>
                       </td>
@@ -340,16 +522,26 @@ function BookingHistoryPage() {
                     <p>Amount: <span className="font-semibold text-slate-950">Rs. {booking.amountPaid.toLocaleString('en-IN')}</span></p>
                     <p>Status: <span className="font-semibold text-slate-950">{booking.bookingStatus}</span></p>
                   </div>
-                  <div className="mt-5 flex gap-2">
+                  <div className="mt-5 flex flex-wrap gap-2">
                     <Button type="button" onClick={() => setSelectedBooking(booking)} className="flex-1" data-testid={`view-booking-details-button-card-${booking.id}`}>
                       View Details
                     </Button>
                     <button
                       type="button"
+                      onClick={() => setReceiptBooking(booking)}
                       className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 focus-ring"
                       data-testid={`download-receipt-button-card-${booking.id}`}
                     >
                       Receipt
+                    </button>
+                    <button
+                      type="button"
+                      disabled={booking.bookingStatus === 'cancelled'}
+                      onClick={() => handleCancelBooking(booking.id)}
+                      className="rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-bold text-red-700 focus-ring disabled:cursor-not-allowed disabled:opacity-60"
+                      data-testid={`cancel-booking-button-card-${booking.id}`}
+                    >
+                      Cancel
                     </button>
                   </div>
                 </article>
@@ -379,14 +571,24 @@ function BookingHistoryPage() {
 
             <div className="mt-6 grid gap-5 md:grid-cols-2">
               <div className="rounded-2xl bg-slate-50 p-5">
-                <h3 className="font-bold text-slate-950">Trip</h3>
-                <div className="mt-3 space-y-2 text-sm text-slate-600">
-                  <p>Type: <span className="font-semibold text-slate-950">{selectedBooking.bookingType}</span></p>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h3 className="font-bold text-slate-950">Trip</h3>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={selectedBooking.bookingStatus === 'cancelled'}
+                      onClick={() => handleCancelBooking(selectedBooking.id)}
+                      className="rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 focus-ring disabled:cursor-not-allowed disabled:opacity-60"
+                      data-testid="modal-cancel-booking-button"
+                    >
+                      Cancel booking
+                    </button>
+                  </div>
                   <p>Destination/City: <span className="font-semibold text-slate-950">{selectedBooking.destination || 'Not available'}</span></p>
                   <p>Travel date: <span className="font-semibold text-slate-950">{selectedBooking.travelDate || 'Not available'}</span></p>
                   <p>Status: <span className="font-semibold text-slate-950">{selectedBooking.bookingStatus}</span></p>
                 </div>
-              </div>
 
               <div className="rounded-2xl bg-slate-50 p-5">
                 <h3 className="font-bold text-slate-950">Payment</h3>
@@ -398,13 +600,87 @@ function BookingHistoryPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-slate-50 p-5 md:col-span-2">
-                <h3 className="font-bold text-slate-950">Selected {selectedBooking.bookingType}</h3>
-                <pre className="mt-3 whitespace-pre-wrap rounded-2xl bg-white p-4 text-xs leading-6 text-slate-600">
-                  {JSON.stringify(selectedBooking.item, null, 2)}
-                </pre>
+              <SelectedBookingItem booking={selectedBooking} />
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {receiptBooking ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8" data-testid="booking-receipt-modal">
+          <div className="max-h-full w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-5">
+              <div>
+                <p className="text-sm font-bold uppercase tracking-wide text-accent-500">Payment receipt</p>
+                <h2 className="mt-1 font-heading text-2xl font-bold text-slate-950" data-testid="receipt-booking-id">
+                  {receiptBooking.id}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">Issued on {formatDate(receiptBooking.bookingDateTime)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReceiptBooking(null)}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 focus-ring"
+                data-testid="receipt-modal-close-button"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Customer</p>
+                <p className="mt-1 font-bold text-slate-950" data-testid="receipt-customer-name">
+                  {receiptBooking.customerName}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Booking type</p>
+                <p className="mt-1 font-bold capitalize text-slate-950" data-testid="receipt-booking-type">
+                  {receiptBooking.bookingType}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Destination</p>
+                <p className="mt-1 font-bold text-slate-950" data-testid="receipt-destination">
+                  {receiptBooking.destination || 'Not available'}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Travel date</p>
+                <p className="mt-1 font-bold text-slate-950" data-testid="receipt-travel-date">
+                  {receiptBooking.travelDate || 'Not available'}
+                </p>
               </div>
             </div>
+
+            <div className="mt-6 rounded-2xl border border-slate-100 p-4">
+              <div className="flex justify-between gap-4 text-sm text-slate-600">
+                <span>Payment method</span>
+                <span className="font-bold capitalize text-slate-950">{receiptBooking.paymentMethod}</span>
+              </div>
+              <div className="mt-3 flex justify-between gap-4 text-sm text-slate-600">
+                <span>Payment status</span>
+                <span className="font-bold capitalize text-green-700">{receiptBooking.paymentStatus}</span>
+              </div>
+              <div className="mt-3 flex justify-between gap-4 text-sm text-slate-600">
+                <span>Booking status</span>
+                <span className="font-bold capitalize text-slate-950">{receiptBooking.bookingStatus}</span>
+              </div>
+              <div className="mt-4 flex justify-between gap-4 border-t border-slate-100 pt-4 text-lg font-bold text-slate-950">
+                <span>Total paid</span>
+                <span data-testid="receipt-total-paid">Rs. {receiptBooking.amountPaid.toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="mt-6 w-full rounded-2xl bg-primary-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-900/20 transition-all hover:bg-primary-700 focus-ring"
+              data-testid="receipt-print-button"
+            >
+              Print receipt
+            </button>
           </div>
         </div>
       ) : null}

@@ -1,50 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import Badge from '../components/Badge.jsx';
 import Button from '../components/Button.jsx';
 import SeatLegend from '../components/SeatLegend.jsx';
 import SeatMap from '../components/SeatMap.jsx';
-import seatOverrides from '../data/seats.json';
 import images from '../data/images.js';
-
-const letters = ['A', 'B', 'C', 'D'];
+import { generateSeatMap } from '../utils/seatMap.js';
 
 function getStoredJson(key) {
   const value = localStorage.getItem(key);
   return value ? JSON.parse(value) : null;
 }
 
-function getFlightNumberSeed(flightId = '') {
-  return Number(flightId.replace(/\D/g, '')) || 1001;
-}
-
-function generateSeatMap(flightId) {
-  const seed = getFlightNumberSeed(flightId);
-  const generated = [];
-
-  for (let row = 1; row <= 10; row += 1) {
-    letters.forEach((letter) => {
-      const isBusiness = row <= 2;
-      const isPremium = isBusiness || ((row === 3 || row === 4) && (letter === 'A' || letter === 'D'));
-      const status = (seed + row + letter.charCodeAt(0)) % 7 === 0 ? 'reserved' : 'available';
-      generated.push({
-        flightId,
-        seatNumber: `${row}${letter}`,
-        class: isBusiness ? 'Business' : 'Economy',
-        type: isPremium ? 'premium' : 'standard',
-        status,
-        extraCharge: isBusiness ? 1800 : isPremium ? 650 : 0,
-      });
-    });
-  }
-
-  const overrides = seatOverrides.filter((seat) => seat.flightId === flightId);
-  const overrideMap = new Map(overrides.map((seat) => [seat.seatNumber, seat]));
-  return generated.map((seat) => overrideMap.get(seat.seatNumber) || seat);
-}
-
 function FlightSeatSelectionPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const selectedFlight = getStoredJson('traveltest_selected_flight');
   const searchDetails = getStoredJson('traveltest_flight_search');
   const passengerCount = Number(searchDetails?.passengers || 1);
@@ -55,6 +25,13 @@ function FlightSeatSelectionPage() {
 
   const seats = useMemo(() => generateSeatMap(selectedFlight?.id), [selectedFlight?.id]);
   const availableSeats = useMemo(() => seats.filter((seat) => seat.status === 'available'), [seats]);
+  const userSession = getStoredJson('traveltest_user_session');
+
+  useEffect(() => {
+    if (!userSession) {
+      navigate('/login', { state: { from: location.pathname + location.search } });
+    }
+  }, [userSession, navigate, location.pathname, location.search]);
 
   useEffect(() => {
     setSelectedSeats((current) =>

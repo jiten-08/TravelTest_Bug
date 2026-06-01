@@ -6,10 +6,25 @@ import EmptyState from '../components/EmptyState.jsx';
 import LoadingSpinner from '../components/LoadingSpinner.jsx';
 import hotels from '../data/hotels.json';
 import images from '../data/images.js';
+import FancySelect from '../components/FancySelect.jsx';
 
 function getStoredSearch() {
   const savedSearch = localStorage.getItem('traveltest_hotel_search');
   return savedSearch ? JSON.parse(savedSearch) : null;
+}
+
+function getHotelInventory() {
+  const savedInventory = localStorage.getItem('traveltest_hotel_inventory');
+  return savedInventory ? JSON.parse(savedInventory) : {};
+}
+
+function getHotelAvailableRooms(hotel) {
+  const inventory = getHotelInventory();
+  const hotelInventory = inventory[hotel.id];
+  if (!hotelInventory) {
+    return hotel.roomsAvailable;
+  }
+  return Object.values(hotelInventory).reduce((sum, count) => sum + Number(count), 0);
 }
 
 function HotelResultsPage() {
@@ -147,19 +162,20 @@ function HotelResultsPage() {
                 <label className="block text-sm font-semibold text-slate-800" htmlFor="hotel-rating-filter">
                   Minimum rating
                 </label>
-                <select
+                <FancySelect
                   id="hotel-rating-filter"
+                  name="minimumRating"
                   value={minimumRating}
-                  onChange={(event) => setMinimumRating(event.target.value)}
-                  className="travel-select mt-3"
+                  onChange={(e) => setMinimumRating(e.target.value)}
+                  options={[
+                    { value: '0', label: 'Any rating' },
+                    { value: '4', label: '4.0+' },
+                    { value: '4.3', label: '4.3+' },
+                    { value: '4.5', label: '4.5+' },
+                    { value: '4.8', label: '4.8+' },
+                  ]}
                   data-testid="hotel-rating-filter"
-                >
-                  <option value="0">Any rating</option>
-                  <option value="4">4.0+</option>
-                  <option value="4.3">4.3+</option>
-                  <option value="4.5">4.5+</option>
-                  <option value="4.8">4.8+</option>
-                </select>
+                />
               </div>
 
               <div className="mt-6 border-t border-slate-100 pt-5">
@@ -194,18 +210,19 @@ function HotelResultsPage() {
                 <label className="block text-sm font-semibold text-slate-700" htmlFor="hotel-sort-dropdown">
                   Sort hotels
                 </label>
-                <select
+                <FancySelect
                   id="hotel-sort-dropdown"
+                  name="hotelSort"
                   value={sortBy}
-                  onChange={(event) => setSortBy(event.target.value)}
-                  className="travel-select mt-2"
+                  onChange={(e) => setSortBy(e.target.value)}
+                  options={[
+                    { value: 'price-asc', label: 'Price: low to high' },
+                    { value: 'price-desc', label: 'Price: high to low' },
+                    { value: 'rating-desc', label: 'Rating: high to low' },
+                    { value: 'rating-asc', label: 'Rating: low to high' },
+                  ]}
                   data-testid="hotel-sort-dropdown"
-                >
-                  <option value="price-asc">Price: low to high</option>
-                  <option value="price-desc">Price: high to low</option>
-                  <option value="rating-desc">Rating: high to low</option>
-                  <option value="rating-asc">Rating: low to high</option>
-                </select>
+                />
               </div>
             </div>
 
@@ -248,7 +265,9 @@ function HotelResultsPage() {
                           <Badge className="bg-white/90 text-slate-800">{hotel.rating} rating</Badge>
                           <h2 className="mt-2 font-heading text-2xl font-bold text-white">{hotel.name}</h2>
                         </div>
-                        <Badge className="bg-accent-500 text-white">{hotel.roomsAvailable} rooms</Badge>
+                        <Badge className={`text-white ${getHotelAvailableRooms(hotel) > 0 ? 'bg-accent-500' : 'bg-red-500'}`}>
+                          {getHotelAvailableRooms(hotel) > 0 ? `${getHotelAvailableRooms(hotel)} rooms` : 'Sold out'}
+                        </Badge>
                       </div>
                     </div>
 
@@ -273,10 +292,11 @@ function HotelResultsPage() {
                         <Button
                           type="button"
                           onClick={() => handleSelectHotel(hotel)}
+                          disabled={getHotelAvailableRooms(hotel) === 0}
                           className="sm:min-w-36"
                           data-testid={`select-hotel-button-${hotel.id}`}
                         >
-                          Select hotel
+                          {getHotelAvailableRooms(hotel) === 0 ? 'Unavailable' : 'Select hotel'}
                         </Button>
                       </div>
                     </div>

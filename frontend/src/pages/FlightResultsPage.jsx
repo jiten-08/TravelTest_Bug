@@ -6,6 +6,10 @@ import EmptyState from '../components/EmptyState.jsx';
 import LoadingSpinner from '../components/LoadingSpinner.jsx';
 import flights from '../data/flights.json';
 import images from '../data/images.js';
+import FancySelect from '../components/FancySelect.jsx';
+import SeatLegend from '../components/SeatLegend.jsx';
+import SeatMap from '../components/SeatMap.jsx';
+import { generateSeatMap } from '../utils/seatMap.js';
 
 function durationToMinutes(duration) {
   const hours = duration.match(/(\d+)h/);
@@ -24,6 +28,7 @@ function FlightResultsPage() {
   const [airlineFilter, setAirlineFilter] = useState('all');
   const [sortBy, setSortBy] = useState('price-asc');
   const [searchDetails] = useState(getStoredSearch);
+  const [seatPreviewFlight, setSeatPreviewFlight] = useState(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setIsLoading(false), 700);
@@ -74,13 +79,16 @@ function FlightResultsPage() {
   };
 
   const handleViewSeats = (flight) => {
-    localStorage.setItem('traveltest_selected_flight', JSON.stringify(flight));
-    localStorage.setItem('traveltest_flight_search', JSON.stringify(searchDetails));
-    localStorage.removeItem('traveltest_selected_seats');
-    localStorage.removeItem('traveltest_seat_summary');
-    localStorage.removeItem('traveltest_selected_hotel');
-    navigate('/flights/seats?mode=view');
+    setSeatPreviewFlight(flight);
   };
+
+  const previewSeats = useMemo(() => {
+    if (!seatPreviewFlight) {
+      return [];
+    }
+
+    return generateSeatMap(seatPreviewFlight.id).filter((seat) => seat.status === 'available');
+  }, [seatPreviewFlight]);
 
   return (
     <section
@@ -116,18 +124,19 @@ function FlightResultsPage() {
                 <label className="sr-only" htmlFor="flight-sort-dropdown">
                   Sort results
                 </label>
-                <select
+                <FancySelect
                   id="flight-sort-dropdown"
+                  name="flightSort"
                   value={sortBy}
-                  onChange={(event) => setSortBy(event.target.value)}
-                  className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm transition-all hover:border-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => setSortBy(e.target.value)}
+                  options={[
+                    { value: 'price-asc', label: 'Lowest price' },
+                    { value: 'price-desc', label: 'Highest price' },
+                    { value: 'duration-asc', label: 'Shortest duration' },
+                    { value: 'duration-desc', label: 'Longest duration' },
+                  ]}
                   data-testid="flight-sort-dropdown"
-                >
-                  <option value="price-asc">Lowest price</option>
-                  <option value="price-desc">Highest price</option>
-                  <option value="duration-asc">Shortest duration</option>
-                  <option value="duration-desc">Longest duration</option>
-                </select>
+                />
               </div>
             </div>
 
@@ -147,144 +156,87 @@ function FlightResultsPage() {
                 testId="flight-results-empty-state"
               />
             ) : (
-              <div className="overflow-x-auto pb-2">
-                <table className="w-full min-w-[980px] border-separate border-spacing-y-4" data-testid="flight-results-table">
-                  <thead className="sr-only">
-                    <tr>
-                      <th>Airline</th>
-                      <th>Flight Number</th>
-                      <th>Source</th>
-                      <th>Destination</th>
-                      <th>Departure Time</th>
-                      <th>Arrival Time</th>
-                      <th>Duration</th>
-                      <th>Price</th>
-                      <th>Seats Available</th>
-                      <th>Select Button</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {results.map((flight, index) => (
-                      <tr
-                        key={flight.id}
-                        className="group rounded-[1.6rem] bg-white shadow-sm ring-1 ring-slate-100 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-blue-900/10"
-                        data-testid={`flight-result-row-${flight.id}`}
+              <div className="grid gap-4" data-testid="flight-results-table">
+                {results.map((flight, index) => (
+                  <article
+                    key={flight.id}
+                    className="grid gap-5 rounded-[1.6rem] bg-white p-4 shadow-sm ring-1 ring-slate-100 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-blue-900/10 xl:grid-cols-[minmax(190px,1.1fr)_minmax(300px,1.5fr)_minmax(150px,0.75fr)_minmax(150px,0.72fr)] xl:items-center"
+                    data-testid={`flight-result-row-${flight.id}`}
+                  >
+                    <div className="flex min-w-0 items-center gap-4">
+                      <div className="relative h-20 w-28 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-50 to-blue-100">
+                        <img
+                          src={images.flightBanner}
+                          alt={`${flight.airline} aircraft`}
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-white/20" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="mb-2 flex flex-wrap gap-2">
+                          <Badge className="bg-slate-100 text-slate-700">{flight.travelClass}</Badge>
+                          {index === 0 ? <Badge className="bg-primary-50 text-primary-700">Best choice</Badge> : null}
+                        </div>
+                        <p className="text-base font-bold leading-tight text-slate-950">{flight.airline}</p>
+                        <p className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-400">{flight.flightNumber}</p>
+                      </div>
+                    </div>
+
+                    <div className="grid min-w-0 grid-cols-[1fr_minmax(110px,1.35fr)_1fr] items-center gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-bold text-slate-400">{flight.source}</p>
+                        <p className="mt-1 text-2xl font-bold text-slate-950 sm:text-3xl">{flight.source.slice(0, 3).toUpperCase()}</p>
+                        <p className="mt-1 text-xs font-semibold text-slate-500">{flight.departureTime}</p>
+                      </div>
+
+                      <div className="flex min-w-0 flex-col items-center">
+                        <span className="text-xs font-bold text-slate-400">{flight.duration}</span>
+                        <div className="my-3 flex w-full items-center gap-2">
+                          <span className="h-2 w-2 shrink-0 rounded-full bg-slate-300" />
+                          <span className="h-px min-w-4 flex-1 border-t border-dashed border-slate-300" />
+                          <span className="rounded-full bg-slate-950 px-2 py-1 text-[10px] font-bold text-white">AIR</span>
+                          <span className="h-px min-w-4 flex-1 border-t border-dashed border-slate-300" />
+                          <span className="h-2 w-2 shrink-0 rounded-full bg-slate-300" />
+                        </div>
+                        <span className="text-xs font-semibold text-slate-500">Direct route</span>
+                      </div>
+
+                      <div className="min-w-0 text-right">
+                        <p className="truncate text-xs font-bold text-slate-400">{flight.destination}</p>
+                        <p className="mt-1 text-2xl font-bold text-slate-950 sm:text-3xl">{flight.destination.slice(0, 3).toUpperCase()}</p>
+                        <p className="mt-1 text-xs font-semibold text-slate-500">{flight.arrivalTime}</p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl bg-slate-50 p-4 text-left xl:text-right">
+                      <p className="text-xs font-bold text-emerald-500">-{index % 3 === 0 ? 15 : 8}%</p>
+                      <p className="mt-1 text-2xl font-bold tracking-tight text-slate-950">
+                        Rs. {flight.price.toLocaleString('en-IN')}
+                      </p>
+                      <p className="mt-1 text-xs font-semibold text-slate-500">{flight.seatsAvailable} seats left</p>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                      <button
+                        type="button"
+                        onClick={() => handleViewSeats(flight)}
+                        className="rounded-2xl border border-primary-200 bg-primary-50 px-4 py-3 text-sm font-semibold text-primary-700 transition-all hover:border-primary-300 hover:bg-primary-100 focus-ring"
+                        data-testid="view-seats-button"
                       >
-                        <td className="rounded-l-[1.6rem] px-5 py-5 align-middle">
-                          <div className="flex min-w-[250px] items-center gap-4">
-                            <div className="relative h-20 w-32 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-50 to-blue-100">
-                              <img
-                                src={images.flightBanner}
-                                alt={`${flight.airline} aircraft`}
-                                loading="lazy"
-                                className="h-full w-full object-cover"
-                              />
-                              <div className="absolute inset-0 bg-white/20" />
-                            </div>
-                            <div>
-                              <div className="mb-2 flex flex-wrap gap-2">
-                                <Badge className="bg-slate-100 text-slate-700">{flight.travelClass}</Badge>
-                                {index === 0 ? <Badge className="bg-primary-50 text-primary-700">Best choice</Badge> : null}
-                              </div>
-                              <p className="text-base font-bold text-slate-950">{flight.airline}</p>
-                              <p className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-400">{flight.flightNumber}</p>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="hidden px-2 py-5 align-middle text-sm font-semibold text-slate-500 xl:table-cell">
-                          {flight.flightNumber}
-                        </td>
-
-                        <td className="px-4 py-5 align-middle">
-                          <p className="text-xs font-bold text-slate-400">{flight.source}</p>
-                          <p className="mt-1 text-3xl font-bold text-slate-950">{flight.source.slice(0, 3).toUpperCase()}</p>
-                          <p className="mt-1 text-xs font-semibold text-slate-500">{flight.departureTime}</p>
-                        </td>
-
-                        <td className="px-4 py-5 align-middle">
-                          <div className="flex min-w-[160px] flex-col items-center">
-                            <span className="text-xs font-bold text-slate-400">{flight.duration}</span>
-                            <div className="my-3 flex w-full items-center gap-2">
-                              <span className="h-2 w-2 rounded-full bg-slate-300" />
-                              <span className="h-px flex-1 border-t border-dashed border-slate-300" />
-                              <span className="rounded-full bg-slate-950 px-2 py-1 text-[10px] font-bold text-white">AIR</span>
-                              <span className="h-px flex-1 border-t border-dashed border-slate-300" />
-                              <span className="h-2 w-2 rounded-full bg-slate-300" />
-                            </div>
-                            <span className="text-xs font-semibold text-slate-500">Direct route</span>
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-5 align-middle">
-                          <p className="text-xs font-bold text-slate-400">{flight.destination}</p>
-                          <p className="mt-1 text-3xl font-bold text-slate-950">{flight.destination.slice(0, 3).toUpperCase()}</p>
-                          <p className="mt-1 text-xs font-semibold text-slate-500">{flight.arrivalTime}</p>
-                        </td>
-
-                        <td className="hidden px-3 py-5 align-middle text-sm font-semibold text-slate-500 2xl:table-cell">
-                          {flight.departureTime}
-                        </td>
-                        <td className="hidden px-3 py-5 align-middle text-sm font-semibold text-slate-500 2xl:table-cell">
-                          {flight.arrivalTime}
-                        </td>
-                        <td className="hidden px-3 py-5 align-middle text-sm font-semibold text-slate-500 2xl:table-cell">
-                          {flight.duration}
-                        </td>
-
-                        <td className="px-5 py-5 align-middle">
-                          <div className="min-w-[130px] text-right">
-                            <p className="text-xs font-bold text-emerald-500">-{index % 3 === 0 ? 15 : 8}%</p>
-                            <p className="mt-1 text-3xl font-bold tracking-tight text-slate-950">
-                              Rs. {flight.price.toLocaleString('en-IN')}
-                            </p>
-                            <p className="mt-1 text-xs font-semibold text-slate-500">{flight.seatsAvailable} seats left</p>
-                            <button
-                              type="button"
-                              onClick={() => handleViewSeats(flight)}
-                              className="mt-3 inline-flex rounded-2xl bg-gradient-to-r from-primary-600 to-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-900/20 transition-all hover:from-primary-700 hover:to-indigo-700 focus-ring xl:hidden"
-                              data-testid="view-seats-button"
-                            >
-                              View Seats
-                            </button>
-                          </div>
-                        </td>
-
-                        <td className="hidden px-2 py-5 align-middle text-sm font-semibold text-slate-500 xl:table-cell">
-                          {flight.seatsAvailable}
-                        </td>
-
-                        <td className="sticky right-0 z-10 rounded-r-[1.6rem] bg-white px-5 py-5 align-middle shadow-[-14px_0_28px_rgba(15,23,42,0.06)]">
-                          <div className="flex min-w-[150px] flex-col gap-3">
-                            <button
-                              type="button"
-                              onClick={() => handleViewSeats(flight)}
-                              className="rounded-2xl border border-primary-200 bg-primary-50 px-4 py-3 text-sm font-semibold text-primary-700 transition-all hover:border-primary-300 hover:bg-primary-100 focus-ring"
-                              data-testid="view-seats-button"
-                            >
-                              View Seats
-                            </button>
-                            <button
-                              type="button"
-                              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition-all hover:border-blue-200 hover:bg-blue-50 focus-ring"
-                              data-testid={`view-flight-details-button-${flight.id}`}
-                            >
-                              View Details
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleSelectFlight(flight)}
-                              className="rounded-2xl bg-gradient-to-r from-primary-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition-all hover:-translate-y-0.5 hover:from-primary-700 hover:to-indigo-700 focus-ring"
-                              data-testid={`select-flight-button-${flight.id}`}
-                            >
-                              Booking Now
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        View Seats
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectFlight(flight)}
+                        className="rounded-2xl bg-gradient-to-r from-primary-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/20 transition-all hover:-translate-y-0.5 hover:from-primary-700 hover:to-indigo-700 focus-ring"
+                        data-testid={`select-flight-button-${flight.id}`}
+                      >
+                        Booking Now
+                      </button>
+                    </div>
+                  </article>
+                ))}
               </div>
             )}
           </main>
@@ -329,20 +281,14 @@ function FlightResultsPage() {
                   <label className="block text-sm font-semibold text-slate-800" htmlFor="flight-airline-filter-dropdown">
                     Airline
                   </label>
-                  <select
+                  <FancySelect
                     id="flight-airline-filter-dropdown"
+                    name="airlineFilter"
                     value={airlineFilter}
-                    onChange={(event) => setAirlineFilter(event.target.value)}
-                    className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={(e) => setAirlineFilter(e.target.value)}
+                    options={[{ value: 'all', label: 'All airlines' }, ...airlines.map((a) => ({ value: a, label: a }))]}
                     data-testid="flight-airline-filter-dropdown"
-                  >
-                    <option value="all">All airlines</option>
-                    {airlines.map((airline) => (
-                      <option key={airline} value={airline}>
-                        {airline}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
 
                 <div className="border-b border-slate-100 pb-5" data-testid="flight-discount-filter-section">
@@ -372,6 +318,44 @@ function FlightResultsPage() {
           </aside>
         </div>
       </div>
+
+      {seatPreviewFlight ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8" data-testid="flight-seat-preview-modal">
+          <div className="max-h-full w-full max-w-5xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+            <div className="flex flex-col gap-4 border-b border-slate-100 p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
+              <div>
+                <p className="text-sm font-bold uppercase tracking-wide text-accent-500">Seat preview</p>
+                <h2 className="mt-1 font-heading text-2xl font-bold text-slate-950" data-testid="flight-seat-preview-title">
+                  {seatPreviewFlight.airline} | {seatPreviewFlight.flightNumber}
+                </h2>
+                <p className="mt-2 text-sm font-semibold text-slate-500">
+                  {seatPreviewFlight.source} to {seatPreviewFlight.destination} | {seatPreviewFlight.travelClass}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSeatPreviewFlight(null)}
+                className="self-start rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 focus-ring"
+                data-testid="flight-seat-preview-close-button"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="grid gap-5 p-5 sm:p-6">
+              <div className="rounded-3xl border border-slate-100 bg-slate-50 p-5">
+                <SeatLegend />
+              </div>
+              <div className="rounded-3xl border border-slate-100 bg-slate-50 p-5">
+                <p className="text-sm font-semibold text-slate-600">
+                  Available seats are shown for preview. Continue with booking to choose seats and proceed to payment.
+                </p>
+              </div>
+              <SeatMap seats={previewSeats} selectedSeats={[]} onToggleSeat={() => {}} />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

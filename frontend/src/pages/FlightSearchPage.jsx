@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../components/Button.jsx';
 import Card from '../components/Card.jsx';
+import FancySelect from '../components/FancySelect.jsx';
 import flights from '../data/flights.json';
 import images from '../data/images.js';
 
@@ -128,21 +129,14 @@ function FlightSearchPage() {
               </label>
               <div className="mt-2 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition-all hover:border-primary-100">
                 <span className="text-xs font-bold uppercase tracking-wide text-slate-400">From</span>
-                <select
+                <FancySelect
                   id="flight-source-dropdown"
                   name="source"
                   value={form.source}
                   onChange={updateField}
-                  className="travel-select mt-2"
+                  options={[{ value: '', label: 'Select source' }, ...cities.map((c) => ({ value: c, label: c }))]}
                   data-testid="flight-source-dropdown"
-                >
-                  <option value="">Select source</option>
-                  {cities.map((city) => (
-                    <option key={city} value={city}>
-                      {city}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
               {errors.source ? (
                 <p className="mt-2 text-sm font-semibold text-red-600" data-testid="flight-source-validation-message">
@@ -169,21 +163,14 @@ function FlightSearchPage() {
               </label>
               <div className="mt-2 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition-all hover:border-primary-100">
                 <span className="text-xs font-bold uppercase tracking-wide text-slate-400">To</span>
-                <select
+                <FancySelect
                   id="flight-destination-dropdown"
                   name="destination"
                   value={form.destination}
                   onChange={updateField}
-                  className="travel-select mt-2"
+                  options={[{ value: '', label: 'Select destination' }, ...cities.map((c) => ({ value: c, label: c }))]}
                   data-testid="flight-destination-dropdown"
-                >
-                  <option value="">Select destination</option>
-                  {cities.map((city) => (
-                    <option key={city} value={city}>
-                      {city}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
               {errors.destination ? (
                 <p className="mt-2 text-sm font-semibold text-red-600" data-testid="flight-destination-validation-message">
@@ -192,7 +179,7 @@ function FlightSearchPage() {
               ) : null}
             </div>
 
-            <div className="lg:col-span-3">
+            <div className="lg:col-span-6">
               <label className="block text-sm font-bold text-slate-700" htmlFor="flight-departure-date-input">
                 Departure date
               </label>
@@ -213,7 +200,7 @@ function FlightSearchPage() {
               ) : null}
             </div>
 
-            <div className="lg:col-span-3">
+            <div className="lg:col-span-6">
               <label className="block text-sm font-bold text-slate-700" htmlFor="flight-return-date-input">
                 Return date
               </label>
@@ -234,24 +221,18 @@ function FlightSearchPage() {
               ) : null}
             </div>
 
-            <div className="lg:col-span-3">
+            <div className="lg:col-span-6">
               <label className="block text-sm font-bold text-slate-700" htmlFor="flight-passenger-selector">
                 Passengers
               </label>
-              <select
+              <FancySelect
                 id="flight-passenger-selector"
                 name="passengers"
                 value={form.passengers}
                 onChange={updateField}
-                className="travel-select mt-2"
+                options={[{ value: '', label: 'Select passengers' }, ...[1, 2, 3, 4, 5, 6].map((count) => ({ value: String(count), label: `${count} ${count === 1 ? 'passenger' : 'passengers'}` }))]}
                 data-testid="flight-passenger-selector"
-              >
-                {[1, 2, 3, 4, 5, 6].map((count) => (
-                  <option key={count} value={count}>
-                    {count} {count === 1 ? 'passenger' : 'passengers'}
-                  </option>
-                ))}
-              </select>
+              />
               {errors.passengers ? (
                 <p className="mt-2 text-sm font-semibold text-red-600" data-testid="flight-passenger-validation-message">
                   {errors.passengers}
@@ -259,24 +240,18 @@ function FlightSearchPage() {
               ) : null}
             </div>
 
-            <div className="lg:col-span-3">
+            <div className="lg:col-span-6">
               <label className="block text-sm font-bold text-slate-700" htmlFor="flight-class-dropdown">
                 Travel class
               </label>
-              <select
+              <FancySelect
                 id="flight-class-dropdown"
                 name="travelClass"
                 value={form.travelClass}
                 onChange={updateField}
-                className="travel-select mt-2"
+                options={travelClasses.map((tc) => ({ value: tc, label: tc }))}
                 data-testid="flight-class-dropdown"
-              >
-                {travelClasses.map((travelClass) => (
-                  <option key={travelClass} value={travelClass}>
-                    {travelClass}
-                  </option>
-                ))}
-              </select>
+              />
               {errors.travelClass ? (
                 <p className="mt-2 text-sm font-semibold text-red-600" data-testid="flight-class-validation-message">
                   {errors.travelClass}

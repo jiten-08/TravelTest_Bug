@@ -105,6 +105,11 @@ function BookingConfirmationPage() {
                       <p className="text-sm text-slate-600">
                         City <span className="block font-semibold text-slate-950">{item.city}</span>
                       </p>
+                      {booking.selectedRoomType ? (
+                        <p className="text-sm text-slate-600">
+                          Room type <span className="block font-semibold text-slate-950">{booking.selectedRoomType}</span>
+                        </p>
+                      ) : null}
                       <p className="text-sm text-slate-600 sm:col-span-2">
                         Address <span className="block font-semibold text-slate-950">{item.address}</span>
                       </p>

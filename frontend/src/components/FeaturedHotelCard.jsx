@@ -1,7 +1,7 @@
 import Badge from './Badge.jsx';
 import ImageCard from './ImageCard.jsx';
 
-function FeaturedHotelCard({ hotel, image, testId }) {
+function FeaturedHotelCard({ hotel, image, testId, onViewDetails }) {
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl" data-testid={testId}>
       <ImageCard src={image} alt={`${hotel.name} hotel`} className="h-48" />
@@ -24,7 +24,12 @@ function FeaturedHotelCard({ hotel, image, testId }) {
           <p className="text-sm text-slate-500">
             From <span className="text-lg font-bold text-slate-950">Rs. {hotel.pricePerNight.toLocaleString('en-IN')}</span>
           </p>
-          <button className="rounded-xl bg-accent-500 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-accent-600" type="button">
+          <button
+            className="rounded-xl bg-accent-500 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-accent-600 focus-ring"
+            type="button"
+            onClick={() => onViewDetails?.(hotel, image)}
+            data-testid={`featured-hotel-view-details-${hotel.id}`}
+          >
             View details
           </button>
         </div>
