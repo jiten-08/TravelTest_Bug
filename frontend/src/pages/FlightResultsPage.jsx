@@ -10,6 +10,7 @@ import FancySelect from '../components/FancySelect.jsx';
 import SeatLegend from '../components/SeatLegend.jsx';
 import SeatMap from '../components/SeatMap.jsx';
 import { generateSeatMap } from '../utils/seatMap.js';
+import { bookingsApi, flightsApi, getApiErrorMessage } from '../services/api.js';
 
 function durationToMinutes(duration) {
   const hours = duration.match(/(\d+)h/);
@@ -29,28 +30,60 @@ function FlightResultsPage() {
   const [sortBy, setSortBy] = useState('price-asc');
   const [searchDetails] = useState(getStoredSearch);
   const [seatPreviewFlight, setSeatPreviewFlight] = useState(null);
+  const [previewBookedSeatNumbers, setPreviewBookedSeatNumbers] = useState([]);
+  const [previewSeatError, setPreviewSeatError] = useState('');
+  const [availableFlights, setAvailableFlights] = useState([]);
+  const [apiError, setApiError] = useState('');
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 700);
-    return () => window.clearTimeout(timer);
-  }, []);
+    let isMounted = true;
+    setIsLoading(true);
+    setApiError('');
 
-  const airlines = useMemo(() => [...new Set(flights.map((flight) => flight.airline))].sort(), []);
+    const params = searchDetails
+      ? {
+          source: searchDetails.source,
+          destination: searchDetails.destination,
+          travel_class: searchDetails.travelClass,
+        }
+      : {};
+
+    flightsApi.search(params)
+      .then((apiFlights) => {
+        if (isMounted) {
+          setAvailableFlights(apiFlights);
+        }
+      })
+      .catch((error) => {
+        if (isMounted) {
+          const fallbackFlights = searchDetails
+            ? flights.filter(
+                (flight) =>
+                  flight.source === searchDetails.source &&
+                  flight.destination === searchDetails.destination &&
+                  flight.travelClass === searchDetails.travelClass,
+              )
+            : flights;
+          setAvailableFlights(fallbackFlights);
+          setApiError(getApiErrorMessage(error, 'Showing local sample flights because the backend is not available.'));
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [searchDetails]);
+
+  const airlines = useMemo(() => [...new Set(availableFlights.map((flight) => flight.airline))].sort(), [availableFlights]);
 
   const results = useMemo(() => {
-    if (!searchDetails) {
-      return [];
-    }
-
-    const matchedFlights = flights.filter(
-      (flight) =>
-        flight.source === searchDetails.source &&
-        flight.destination === searchDetails.destination &&
-        flight.travelClass === searchDetails.travelClass,
-    );
-
     const filteredFlights =
-      airlineFilter === 'all' ? matchedFlights : matchedFlights.filter((flight) => flight.airline === airlineFilter);
+      airlineFilter === 'all' ? availableFlights : availableFlights.filter((flight) => flight.airline === airlineFilter);
 
     return [...filteredFlights].sort((first, second) => {
       if (sortBy === 'price-desc') {
@@ -67,7 +100,7 @@ function FlightResultsPage() {
 
       return first.price - second.price;
     });
-  }, [airlineFilter, searchDetails, sortBy]);
+  }, [airlineFilter, availableFlights, sortBy]);
 
   const handleSelectFlight = (flight) => {
     localStorage.setItem('traveltest_selected_flight', JSON.stringify(flight));
@@ -80,6 +113,15 @@ function FlightResultsPage() {
 
   const handleViewSeats = (flight) => {
     setSeatPreviewFlight(flight);
+    setPreviewBookedSeatNumbers([]);
+    setPreviewSeatError('');
+
+    bookingsApi.bookedSeats(flight.id)
+      .then((seatNumbers) => setPreviewBookedSeatNumbers(seatNumbers))
+      .catch((error) => {
+        setPreviewBookedSeatNumbers([]);
+        setPreviewSeatError(getApiErrorMessage(error, 'Could not load booked seats for this flight.'));
+      });
   };
 
   const previewSeats = useMemo(() => {
@@ -87,8 +129,11 @@ function FlightResultsPage() {
       return [];
     }
 
-    return generateSeatMap(seatPreviewFlight.id).filter((seat) => seat.status === 'available');
-  }, [seatPreviewFlight]);
+    const booked = new Set(previewBookedSeatNumbers);
+    return generateSeatMap(seatPreviewFlight.id)
+      .map((seat) => (booked.has(seat.seatNumber) ? { ...seat, status: 'reserved' } : seat))
+      .filter((seat) => seat.status === 'available');
+  }, [previewBookedSeatNumbers, seatPreviewFlight]);
 
   return (
     <section
@@ -139,6 +184,12 @@ function FlightResultsPage() {
                 />
               </div>
             </div>
+
+            {apiError ? (
+              <p className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700">
+                {apiError}
+              </p>
+            ) : null}
 
             {isLoading ? (
               <div className="rounded-[1.75rem] bg-white p-4 shadow-sm" data-testid="flight-results-loading-skeleton">
@@ -350,6 +401,9 @@ function FlightResultsPage() {
                 <p className="text-sm font-semibold text-slate-600">
                   Available seats are shown for preview. Continue with booking to choose seats and proceed to payment.
                 </p>
+                {previewSeatError ? (
+                  <p className="mt-2 text-sm font-semibold text-amber-700">{previewSeatError}</p>
+                ) : null}
               </div>
               <SeatMap seats={previewSeats} selectedSeats={[]} onToggleSeat={() => {}} />
             </div>

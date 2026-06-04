@@ -9,6 +9,7 @@ import flights from '../data/flights.json';
 import hotels from '../data/hotels.json';
 import images from '../data/images.js';
 import users from '../data/users.json';
+import { bookingsApi, getApiErrorMessage } from '../services/api.js';
 
 function getStoredJson(key) {
   const value = localStorage.getItem(key);
@@ -24,9 +25,20 @@ function readLocalBookings() {
   return value ? JSON.parse(value) : [];
 }
 
-function getHotelInventory(hotelId) {
-  const storedInventory = getStoredJson('traveltest_hotel_inventory') || {};
-  return storedInventory[hotelId] || {};
+function getCurrentCustomerName() {
+  const session = getStoredJson('traveltest_user_session');
+  return session?.name || session?.fullName || session?.email || 'Traveller';
+}
+
+function applyCurrentCustomerName(booking) {
+  if (booking.source !== 'api') {
+    return booking;
+  }
+
+  return {
+    ...booking,
+    customerName: getCurrentCustomerName(),
+  };
 }
 
 function updateHotelInventory(hotelId, roomTypeId, quantityChange) {
@@ -119,88 +131,11 @@ function getTravelDateForSort(booking) {
   return booking.travelDate || booking.bookingDateTime;
 }
 
-function SelectedBookingItem({ booking }) {
-  const item = booking.item || {};
-
-  if (booking.bookingType === 'flight') {
-    return (
-      <div className="rounded-2xl bg-slate-50 p-5 md:col-span-2" data-testid="selected-flight-details-card">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Selected flight</p>
-            <h3 className="mt-1 font-heading text-xl font-bold text-slate-950">
-              {item.airline || 'Flight'} {item.flightNumber ? `| ${item.flightNumber}` : ''}
-            </h3>
-            <p className="mt-2 text-sm font-semibold text-slate-500">
-              {item.travelClass || booking.searchDetails?.travelClass || 'Travel class not available'}
-            </p>
-          </div>
-          <div className="rounded-2xl bg-white px-4 py-3 text-right shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Fare</p>
-            <p className="mt-1 text-lg font-bold text-slate-950">
-              Rs. {Number(item.price || booking.amountPaid || 0).toLocaleString('en-IN')}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl bg-white p-4 shadow-sm">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{item.source || booking.searchDetails?.source || 'From'}</p>
-            <p className="mt-1 text-2xl font-bold text-slate-950">
-              {(item.source || booking.searchDetails?.source || '---').slice(0, 3).toUpperCase()}
-            </p>
-            <p className="mt-1 text-xs font-semibold text-slate-500">{item.departureTime || 'Time not available'}</p>
-          </div>
-          <div className="flex min-w-[120px] flex-col items-center">
-            <span className="text-xs font-bold text-slate-400">{item.duration || 'Direct'}</span>
-            <div className="my-3 flex w-full items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-slate-300" />
-              <span className="h-px flex-1 border-t border-dashed border-slate-300" />
-              <span className="rounded-full bg-slate-950 px-2 py-1 text-[10px] font-bold text-white">AIR</span>
-              <span className="h-px flex-1 border-t border-dashed border-slate-300" />
-              <span className="h-2 w-2 rounded-full bg-slate-300" />
-            </div>
-            <span className="text-xs font-semibold text-slate-500">Direct route</span>
-          </div>
-          <div className="text-right">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{item.destination || booking.destination || 'To'}</p>
-            <p className="mt-1 text-2xl font-bold text-slate-950">
-              {(item.destination || booking.destination || '---').slice(0, 3).toUpperCase()}
-            </p>
-            <p className="mt-1 text-xs font-semibold text-slate-500">{item.arrivalTime || 'Time not available'}</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-2xl bg-slate-50 p-5 md:col-span-2" data-testid="selected-hotel-details-card">
-      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Selected hotel</p>
-      <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h3 className="font-heading text-xl font-bold text-slate-950">{item.name || 'Hotel'}</h3>
-          <p className="mt-2 text-sm text-slate-600">{item.city || booking.destination || 'City not available'}</p>
-          <p className="mt-2 text-xs font-bold uppercase tracking-wide text-slate-400">{item.address || 'Address not available'}</p>
-        </div>
-        <div className="rounded-2xl bg-white px-4 py-3 text-right shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Per night</p>
-          <p className="mt-1 text-lg font-bold text-slate-950">
-            Rs. {Number(item.pricePerNight || 0).toLocaleString('en-IN')}
-          </p>
-        </div>
-      </div>
-      {item.amenities?.length ? (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {item.amenities.map((amenity) => (
-            <span key={amenity} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">
-              {amenity}
-            </span>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
+function getSelectedSeatNumbers(booking) {
+  const selectedSeats = booking.selectedSeats || booking.searchDetails?.selectedSeats || [];
+  const seatSummary = booking.seatSummary || booking.searchDetails?.seatSummary || {};
+  const seatNumbers = selectedSeats.map((seat) => (typeof seat === 'string' ? seat : seat.seatNumber)).filter(Boolean);
+  return [...new Set([...seatNumbers, ...(seatSummary.selectedSeatNumbers || [])])];
 }
 
 function BookingHistoryPage() {
@@ -209,16 +144,14 @@ function BookingHistoryPage() {
   const [receiptBooking, setReceiptBooking] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [bookings, setBookings] = useState([]);
+  const [apiError, setApiError] = useState('');
+  const [ticketError, setTicketError] = useState('');
+  const [cancellingBookingId, setCancellingBookingId] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('all');
   const [bookingStatusFilter, setBookingStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('booking-date-desc');
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 600);
-    return () => window.clearTimeout(timer);
-  }, []);
 
   useEffect(() => {
     if (!successMessage) {
@@ -230,16 +163,41 @@ function BookingHistoryPage() {
   }, [successMessage]);
 
   useEffect(() => {
-    const localBookings = readLocalBookings();
-    if (localBookings.length > 0) {
-      setBookings(localBookings.map(normalizeLocalBooking));
-      return;
-    }
+    let isMounted = true;
+    setIsLoading(true);
+    setApiError('');
 
-    setBookings(sampleBookings.map(normalizeSampleBooking));
+    bookingsApi.list()
+      .then((apiBookings) => {
+        if (isMounted) {
+          setBookings(apiBookings.map(applyCurrentCustomerName));
+        }
+      })
+      .catch((error) => {
+        if (!isMounted) {
+          return;
+        }
+
+        const localBookings = readLocalBookings();
+        if (localBookings.length > 0) {
+          setBookings(localBookings.map(normalizeLocalBooking));
+        } else {
+          setBookings(sampleBookings.map(normalizeSampleBooking));
+        }
+        setApiError(getApiErrorMessage(error, 'Showing local sample bookings because the backend is not available.'));
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  function handleCancelBooking(bookingId) {
+  async function handleCancelBooking(bookingId) {
     const currentBookings = bookings.length > 0 ? bookings : [];
     const bookingToCancel = currentBookings.find((booking) => booking.id === bookingId);
     if (!bookingToCancel || bookingToCancel.bookingStatus === 'cancelled') {
@@ -251,7 +209,24 @@ function BookingHistoryPage() {
       return;
     }
 
-    const updatedBooking = { ...bookingToCancel, bookingStatus: 'cancelled' };
+    let updatedBooking = { ...bookingToCancel, bookingStatus: 'cancelled' };
+    setApiError('');
+    setTicketError('');
+    setCancellingBookingId(bookingId);
+
+    if (bookingToCancel.source === 'api') {
+      try {
+        updatedBooking = applyCurrentCustomerName(await bookingsApi.cancel(bookingToCancel.backendId || bookingToCancel.id));
+      } catch (error) {
+        const message = getApiErrorMessage(error, 'Could not cancel this booking.');
+        setSuccessMessage('');
+        setApiError(message);
+        setTicketError(message);
+        setCancellingBookingId('');
+        return;
+      }
+    }
+
     const nextBookings = currentBookings.map((booking) => (booking.id === bookingId ? updatedBooking : booking));
     setBookings(nextBookings);
     if (selectedBooking?.id === bookingId) {
@@ -262,20 +237,24 @@ function BookingHistoryPage() {
     }
     setSuccessMessage('Booking cancelled successfully. Any released hotel room inventory has been restored.');
 
-    const localBookings = readLocalBookings();
-    const persistedBookings = localBookings.length > 0 ? localBookings : sampleBookings.map((booking) => normalizeSampleBooking(booking));
-    const updatedPersisted = persistedBookings.map((booking) =>
-      booking.id === bookingId ? { ...booking, bookingStatus: 'cancelled' } : booking,
-    );
-    saveLocalBookings(updatedPersisted);
+    if (bookingToCancel.source !== 'api') {
+      const localBookings = readLocalBookings();
+      const persistedBookings = localBookings.length > 0 ? localBookings : sampleBookings.map((booking) => normalizeSampleBooking(booking));
+      const updatedPersisted = persistedBookings.map((booking) =>
+        booking.id === bookingId ? { ...booking, bookingStatus: 'cancelled' } : booking,
+      );
+      saveLocalBookings(updatedPersisted);
+    }
 
-    if (bookingToCancel.bookingType === 'hotel' && bookingToCancel.selectedRoomTypeId) {
+    if (bookingToCancel.source !== 'api' && bookingToCancel.bookingType === 'hotel' && bookingToCancel.selectedRoomTypeId) {
       updateHotelInventory(
         bookingToCancel.item.id,
         bookingToCancel.selectedRoomTypeId,
         Number(bookingToCancel.searchDetails?.rooms || 1),
       );
     }
+
+    setCancellingBookingId('');
   }
 
   const filteredBookings = useMemo(() => {
@@ -428,6 +407,12 @@ function BookingHistoryPage() {
           </div>
         ) : null}
 
+        {apiError ? (
+          <div className="mb-6 rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-semibold text-amber-700 shadow-sm">
+            {apiError}
+          </div>
+        ) : null}
+
         {isLoading ? (
           <div className="rounded-3xl border border-slate-100 bg-white shadow-sm" data-testid="booking-history-loading-spinner">
             <LoadingSpinner label="Loading booking history" />
@@ -475,11 +460,14 @@ function BookingHistoryPage() {
                         <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
-                            onClick={() => setSelectedBooking(booking)}
+                            onClick={() => {
+                              setTicketError('');
+                              setSelectedBooking(booking);
+                            }}
                             className="rounded-xl bg-primary-600 px-3 py-2 text-xs font-bold text-white focus-ring"
                             data-testid={`view-booking-details-button-${booking.id}`}
                           >
-                            View
+                            View Ticket
                           </button>
                           <button
                             type="button"
@@ -491,12 +479,12 @@ function BookingHistoryPage() {
                           </button>
                           <button
                             type="button"
-                            disabled={booking.bookingStatus === 'cancelled'}
+                            disabled={booking.bookingStatus === 'cancelled' || cancellingBookingId === booking.id}
                             onClick={() => handleCancelBooking(booking.id)}
                             className="rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 focus-ring disabled:cursor-not-allowed disabled:opacity-60"
                             data-testid={`cancel-booking-button-${booking.id}`}
                           >
-                            Cancel
+                            {cancellingBookingId === booking.id ? 'Cancelling...' : 'Cancel'}
                           </button>
                         </div>
                       </td>
@@ -523,8 +511,16 @@ function BookingHistoryPage() {
                     <p>Status: <span className="font-semibold text-slate-950">{booking.bookingStatus}</span></p>
                   </div>
                   <div className="mt-5 flex flex-wrap gap-2">
-                    <Button type="button" onClick={() => setSelectedBooking(booking)} className="flex-1" data-testid={`view-booking-details-button-card-${booking.id}`}>
-                      View Details
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        setTicketError('');
+                        setSelectedBooking(booking);
+                      }}
+                      className="flex-1"
+                      data-testid={`view-booking-details-button-card-${booking.id}`}
+                    >
+                      View Ticket
                     </Button>
                     <button
                       type="button"
@@ -536,12 +532,12 @@ function BookingHistoryPage() {
                     </button>
                     <button
                       type="button"
-                      disabled={booking.bookingStatus === 'cancelled'}
+                      disabled={booking.bookingStatus === 'cancelled' || cancellingBookingId === booking.id}
                       onClick={() => handleCancelBooking(booking.id)}
                       className="rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-bold text-red-700 focus-ring disabled:cursor-not-allowed disabled:opacity-60"
                       data-testid={`cancel-booking-button-card-${booking.id}`}
                     >
-                      Cancel
+                      {cancellingBookingId === booking.id ? 'Cancelling...' : 'Cancel'}
                     </button>
                   </div>
                 </article>
@@ -553,54 +549,170 @@ function BookingHistoryPage() {
 
       {selectedBooking ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8" data-testid="booking-details-modal">
-          <div className="max-h-full w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-bold uppercase tracking-wide text-accent-500">Booking details</p>
-                <h2 className="mt-1 font-heading text-2xl font-bold text-slate-950">{selectedBooking.id}</h2>
-              </div>
+          <div className="max-h-full w-full max-w-5xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+            <div className="relative h-64">
+              <img
+                src={images.bookingSuccessImage}
+                alt="Travel ticket"
+                loading="lazy"
+                className="h-full w-full rounded-t-3xl object-cover"
+                onError={(event) => {
+                  event.currentTarget.style.display = 'none';
+                }}
+              />
+              <div className="absolute inset-0 rounded-t-3xl bg-gradient-to-r from-slate-950/80 to-primary-700/30" />
               <button
                 type="button"
                 onClick={() => setSelectedBooking(null)}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 focus-ring"
+                className="absolute right-5 top-5 rounded-xl bg-white/90 px-3 py-2 text-sm font-bold text-slate-700 shadow-sm focus-ring"
                 data-testid="modal-close-button"
               >
                 Close
               </button>
+              <div className="absolute bottom-6 left-6 right-6 text-white sm:left-8 sm:right-8">
+                <p className="text-sm font-bold uppercase tracking-wide text-accent-300">Travel ticket</p>
+                <h2 className="mt-2 font-heading text-4xl font-bold">Your trip is ready.</h2>
+                <p className="mt-3 inline-flex rounded-full bg-white/15 px-4 py-2 text-sm font-semibold backdrop-blur">
+                  {selectedBooking.bookingStatus === 'cancelled' ? 'Booking cancelled' : 'Payment successful and booking confirmed.'}
+                </p>
+              </div>
             </div>
 
-            <div className="mt-6 grid gap-5 md:grid-cols-2">
-              <div className="rounded-2xl bg-slate-50 p-5">
-                  <div className="flex items-center justify-between gap-4">
+            <div className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[1fr_320px]">
+              <div className="space-y-5">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <h3 className="font-bold text-slate-950">Trip</h3>
+                      <p className="text-sm font-semibold text-slate-500">Booking ID</p>
+                      <p className="mt-1 font-heading text-2xl font-bold text-slate-950" data-testid="ticket-booking-id">
+                        {selectedBooking.bookingId || selectedBooking.id}
+                      </p>
                     </div>
-                    <button
-                      type="button"
-                      disabled={selectedBooking.bookingStatus === 'cancelled'}
-                      onClick={() => handleCancelBooking(selectedBooking.id)}
-                      className="rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 focus-ring disabled:cursor-not-allowed disabled:opacity-60"
-                      data-testid="modal-cancel-booking-button"
-                    >
-                      Cancel booking
-                    </button>
+                    <Badge className={selectedBooking.bookingStatus === 'cancelled' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}>
+                      {selectedBooking.bookingStatus}
+                    </Badge>
                   </div>
-                  <p>Destination/City: <span className="font-semibold text-slate-950">{selectedBooking.destination || 'Not available'}</span></p>
-                  <p>Travel date: <span className="font-semibold text-slate-950">{selectedBooking.travelDate || 'Not available'}</span></p>
-                  <p>Status: <span className="font-semibold text-slate-950">{selectedBooking.bookingStatus}</span></p>
                 </div>
 
-              <div className="rounded-2xl bg-slate-50 p-5">
-                <h3 className="font-bold text-slate-950">Payment</h3>
-                <div className="mt-3 space-y-2 text-sm text-slate-600">
-                  <p>Method: <span className="font-semibold text-slate-950">{selectedBooking.paymentMethod}</span></p>
-                  <p>Status: <span className="font-semibold text-green-700">{selectedBooking.paymentStatus}</span></p>
-                  <p>Amount: <span className="font-semibold text-slate-950">Rs. {selectedBooking.amountPaid.toLocaleString('en-IN')}</span></p>
-                  <p>Booked on: <span className="font-semibold text-slate-950">{formatDate(selectedBooking.bookingDateTime)}</span></p>
+                <div className="rounded-2xl border border-slate-100 p-5">
+                  <h3 className="font-heading text-xl font-bold text-slate-900">Booking details</h3>
+                  {selectedBooking.bookingType === 'flight' ? (
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2" data-testid="ticket-flight-details">
+                      <p className="text-sm text-slate-600">
+                        Airline <span className="block font-semibold text-slate-950">{selectedBooking.item?.airline || 'Flight'}</span>
+                      </p>
+                      <p className="text-sm text-slate-600">
+                        Flight <span className="block font-semibold text-slate-950">{selectedBooking.item?.flightNumber || 'Not available'}</span>
+                      </p>
+                      <p className="text-sm text-slate-600">
+                        Route{' '}
+                        <span className="block font-semibold text-slate-950">
+                          {selectedBooking.item?.source || selectedBooking.searchDetails?.source || 'From'} to{' '}
+                          {selectedBooking.item?.destination || selectedBooking.destination || 'To'}
+                        </span>
+                      </p>
+                      <p className="text-sm text-slate-600">
+                        Time{' '}
+                        <span className="block font-semibold text-slate-950">
+                          {selectedBooking.item?.departureTime || 'Time not available'} to {selectedBooking.item?.arrivalTime || 'Time not available'}
+                        </span>
+                      </p>
+                      <p className="text-sm text-slate-600">
+                        Travel class{' '}
+                        <span className="block font-semibold text-slate-950">
+                          {selectedBooking.item?.travelClass || selectedBooking.searchDetails?.travelClass || 'Not available'}
+                        </span>
+                      </p>
+                      <p className="text-sm text-slate-600" data-testid="ticket-selected-seats">
+                        Seats{' '}
+                        <span className="block font-semibold text-slate-950">
+                          {getSelectedSeatNumbers(selectedBooking).length > 0 ? getSelectedSeatNumbers(selectedBooking).join(', ') : 'Not selected'}
+                        </span>
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2" data-testid="ticket-hotel-details">
+                      <p className="text-sm text-slate-600">
+                        Hotel <span className="block font-semibold text-slate-950">{selectedBooking.item?.name || 'Hotel'}</span>
+                      </p>
+                      <p className="text-sm text-slate-600">
+                        City <span className="block font-semibold text-slate-950">{selectedBooking.item?.city || selectedBooking.destination || 'Not available'}</span>
+                      </p>
+                      <p className="text-sm text-slate-600">
+                        Room type <span className="block font-semibold text-slate-950">{selectedBooking.selectedRoomType || selectedBooking.selectedRoomTypeId || 'Not selected'}</span>
+                      </p>
+                      <p className="text-sm text-slate-600">
+                        Stay{' '}
+                        <span className="block font-semibold text-slate-950">
+                          {selectedBooking.searchDetails?.checkInDate || 'Check-in not available'} to {selectedBooking.searchDetails?.checkOutDate || 'Check-out not available'}
+                        </span>
+                      </p>
+                      <p className="text-sm text-slate-600 sm:col-span-2">
+                        Address <span className="block font-semibold text-slate-950">{selectedBooking.item?.address || 'Address not available'}</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-slate-100 p-5" data-testid="ticket-customer-details">
+                  <h3 className="font-heading text-xl font-bold text-slate-900">Customer details</h3>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <p className="text-sm text-slate-600">
+                      Name <span className="block font-semibold text-slate-950">{selectedBooking.customerName || 'You'}</span>
+                    </p>
+                    <p className="text-sm text-slate-600">
+                      Travel date <span className="block font-semibold text-slate-950">{selectedBooking.travelDate || 'Not available'}</span>
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              <SelectedBookingItem booking={selectedBooking} />
+              <aside className="rounded-2xl border border-slate-100 bg-slate-50 p-5 lg:self-start">
+                <h3 className="font-heading text-xl font-bold text-slate-900">Payment summary</h3>
+                {ticketError ? (
+                  <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                    {ticketError}
+                  </p>
+                ) : null}
+                <div className="mt-5 space-y-3 text-sm">
+                  <div className="flex justify-between gap-4 text-slate-600">
+                    <span>Payment method</span>
+                    <span className="font-semibold capitalize text-slate-950">{selectedBooking.paymentMethod}</span>
+                  </div>
+                  <div className="flex justify-between gap-4 text-slate-600">
+                    <span>Payment status</span>
+                    <span className="font-semibold capitalize text-green-700">{selectedBooking.paymentStatus}</span>
+                  </div>
+                  <div className="flex justify-between gap-4 text-slate-600">
+                    <span>Total paid</span>
+                    <span className="font-semibold text-slate-950">Rs. {selectedBooking.amountPaid.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between gap-4 text-slate-600">
+                    <span>Booked on</span>
+                    <span className="text-right font-semibold text-slate-950">{formatDate(selectedBooking.bookingDateTime)}</span>
+                  </div>
+                </div>
+
+                <div className="mt-6 grid gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setReceiptBooking(selectedBooking)}
+                    className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 transition-all hover:bg-slate-50 focus-ring"
+                    data-testid="ticket-receipt-button"
+                  >
+                    View Receipt
+                  </button>
+                  <button
+                    type="button"
+                    disabled={selectedBooking.bookingStatus === 'cancelled' || cancellingBookingId === selectedBooking.id}
+                    onClick={() => handleCancelBooking(selectedBooking.id)}
+                    className="rounded-2xl border border-red-200 bg-white px-5 py-3 text-sm font-bold text-red-700 transition-all hover:bg-red-50 focus-ring disabled:cursor-not-allowed disabled:opacity-60"
+                    data-testid="modal-cancel-booking-button"
+                  >
+                    {cancellingBookingId === selectedBooking.id ? 'Cancelling...' : 'Cancel booking'}
+                  </button>
+                </div>
+              </aside>
             </div>
           </div>
         </div>

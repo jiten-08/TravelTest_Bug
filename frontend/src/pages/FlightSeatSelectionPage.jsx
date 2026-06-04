@@ -6,6 +6,7 @@ import SeatLegend from '../components/SeatLegend.jsx';
 import SeatMap from '../components/SeatMap.jsx';
 import images from '../data/images.js';
 import { generateSeatMap } from '../utils/seatMap.js';
+import { bookingsApi, getApiErrorMessage } from '../services/api.js';
 
 function getStoredJson(key) {
   const value = localStorage.getItem(key);
@@ -20,12 +21,45 @@ function FlightSeatSelectionPage() {
   const passengerCount = Number(searchDetails?.passengers || 1);
   const [selectedSeats, setSelectedSeats] = useState(getStoredJson('traveltest_selected_seats') || []);
   const [error, setError] = useState('');
+  const [seatLoadError, setSeatLoadError] = useState('');
+  const [bookedSeatNumbers, setBookedSeatNumbers] = useState([]);
   const [searchParams] = useSearchParams();
   const isViewOnly = searchParams.get('mode') === 'view';
-
-  const seats = useMemo(() => generateSeatMap(selectedFlight?.id), [selectedFlight?.id]);
-  const availableSeats = useMemo(() => seats.filter((seat) => seat.status === 'available'), [seats]);
   const userSession = getStoredJson('traveltest_user_session');
+
+  useEffect(() => {
+    if (!selectedFlight?.id || !userSession) {
+      return undefined;
+    }
+
+    let isMounted = true;
+    setSeatLoadError('');
+
+    bookingsApi.bookedSeats(selectedFlight.id)
+      .then((seatNumbers) => {
+        if (isMounted) {
+          setBookedSeatNumbers(seatNumbers);
+        }
+      })
+      .catch((apiError) => {
+        if (isMounted) {
+          setBookedSeatNumbers([]);
+          setSeatLoadError(getApiErrorMessage(apiError, 'Could not load booked seats. Please refresh before booking.'));
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedFlight?.id, userSession]);
+
+  const seats = useMemo(() => {
+    const booked = new Set(bookedSeatNumbers);
+    return generateSeatMap(selectedFlight?.id).map((seat) =>
+      booked.has(seat.seatNumber) ? { ...seat, status: 'reserved' } : seat,
+    );
+  }, [bookedSeatNumbers, selectedFlight?.id]);
+  const availableSeats = useMemo(() => seats.filter((seat) => seat.status === 'available'), [seats]);
 
   useEffect(() => {
     if (!userSession) {
@@ -128,6 +162,9 @@ function FlightSeatSelectionPage() {
               <p className="text-sm font-semibold text-slate-600">Only available seats are shown here; reserved seats are hidden.</p>
               {isViewOnly ? (
                 <p className="mt-2 text-sm text-slate-500">Viewing available seats only. Booking summary is hidden in this mode.</p>
+              ) : null}
+              {seatLoadError ? (
+                <p className="mt-2 text-sm font-semibold text-amber-700">{seatLoadError}</p>
               ) : null}
             </div>
             <SeatMap seats={availableSeats} selectedSeats={selectedSeats} onToggleSeat={toggleSeat} />

@@ -1,0 +1,6 @@
+Django>=4.2
+djangorestframework>=3.14
+djangorestframework-simplejwt>=2.8
+django-filter>=23.0
+pytz
+sqlparse

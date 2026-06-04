@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Button from '../components/Button.jsx';
 import Card from '../components/Card.jsx';
@@ -10,12 +10,7 @@ import SectionTitle from '../components/SectionTitle.jsx';
 import flights from '../data/flights.json';
 import hotels from '../data/hotels.json';
 import images from '../data/images.js';
-
-const stats = [
-  { label: 'Sample flights', value: flights.length, testId: 'home-flights-stat' },
-  { label: 'Sample hotels', value: hotels.length, testId: 'home-hotels-stat' },
-  { label: 'Booking flows planned', value: 9, testId: 'home-practice-stat' },
-];
+import { flightsApi, hotelsApi } from '../services/api.js';
 
 const destinations = [
   {
@@ -69,9 +64,11 @@ const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split(
 function HomePage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('flights');
-  const featuredHotels = hotels.slice(0, 3);
-  const cities = useMemo(() => [...new Set(flights.flatMap((flight) => [flight.source, flight.destination]))].sort(), []);
-  const hotelCities = useMemo(() => [...new Set(hotels.map((hotel) => hotel.city))].sort(), []);
+  const [flightOptions, setFlightOptions] = useState(flights);
+  const [hotelOptions, setHotelOptions] = useState(hotels);
+  const featuredHotels = hotelOptions.slice(0, 3);
+  const cities = useMemo(() => [...new Set(flightOptions.flatMap((flight) => [flight.source, flight.destination]))].sort(), [flightOptions]);
+  const hotelCities = useMemo(() => [...new Set(hotelOptions.map((hotel) => hotel.city))].sort(), [hotelOptions]);
   const [quickSource, setQuickSource] = useState(cities[0] || '');
   const [quickDestination, setQuickDestination] = useState(cities[1] || cities[0] || '');
   const [quickHotelCity, setQuickHotelCity] = useState(hotelCities[0] || '');
@@ -81,12 +78,55 @@ function HomePage() {
   const [quickRooms, setQuickRooms] = useState('1');
   const [selectedHotel, setSelectedHotel] = useState(null);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    Promise.allSettled([flightsApi.search(), hotelsApi.search()]).then(([flightResult, hotelResult]) => {
+      if (!isMounted) {
+        return;
+      }
+
+      if (flightResult.status === 'fulfilled' && flightResult.value.length > 0) {
+        setFlightOptions(flightResult.value);
+      }
+
+      if (hotelResult.status === 'fulfilled' && hotelResult.value.length > 0) {
+        setHotelOptions(hotelResult.value);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!quickSource && cities[0]) {
+      setQuickSource(cities[0]);
+    }
+
+    if (!quickDestination && (cities[1] || cities[0])) {
+      setQuickDestination(cities[1] || cities[0]);
+    }
+  }, [cities, quickDestination, quickSource]);
+
+  useEffect(() => {
+    if (!quickHotelCity && hotelCities[0]) {
+      setQuickHotelCity(hotelCities[0]);
+    }
+  }, [hotelCities, quickHotelCity]);
+
+  const stats = [
+    { label: 'Available flights', value: flightOptions.length, testId: 'home-flights-stat' },
+    { label: 'Available hotels', value: hotelOptions.length, testId: 'home-hotels-stat' },
+    { label: 'Booking flows ready', value: 9, testId: 'home-practice-stat' },
+  ];
+
   const bookFeaturedHotel = () => {
     if (!selectedHotel) {
       return;
     }
 
-    const { image, ...hotelDetails } = selectedHotel;
     const searchDetails = {
       city: selectedHotel.city,
       checkInDate: quickCheckIn || today,
@@ -95,7 +135,7 @@ function HomePage() {
       rooms: quickRooms,
     };
 
-    localStorage.setItem('traveltest_selected_hotel', JSON.stringify(hotelDetails));
+    localStorage.setItem('traveltest_selected_hotel', JSON.stringify(selectedHotel));
     localStorage.setItem('traveltest_hotel_search', JSON.stringify(searchDetails));
     localStorage.removeItem('traveltest_selected_flight');
     localStorage.removeItem('traveltest_selected_seats');
@@ -298,14 +338,14 @@ function HomePage() {
           <SectionTitle
             eyebrow="Featured stays"
             title="Hotels for every itinerary"
-            description="Sample hotel data is displayed with production-style cards and mobile-friendly spacing."
+            description="Available hotel data is displayed with production-style cards and mobile-friendly spacing."
           />
           <div className="mt-8 grid gap-6 md:grid-cols-3">
             {featuredHotels.map((hotel, index) => (
               <FeaturedHotelCard
                 key={hotel.id}
                 hotel={hotel}
-                image={images.featuredHotels[index]}
+                image={hotel.image || images.featuredHotels[index]}
                 testId={`featured-hotel-card-${hotel.id}`}
                 onViewDetails={(hotelDetails, hotelImage) => setSelectedHotel({ ...hotelDetails, image: hotelImage })}
               />
@@ -398,7 +438,7 @@ function HomePage() {
                   {selectedHotel.address}
                 </p>
                 <div className="mt-5 flex flex-wrap gap-2">
-                  {selectedHotel.amenities.map((amenity) => (
+                  {(selectedHotel.amenities || []).map((amenity) => (
                     <span key={amenity} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
                       {amenity}
                     </span>

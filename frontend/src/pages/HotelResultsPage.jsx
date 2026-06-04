@@ -7,6 +7,7 @@ import LoadingSpinner from '../components/LoadingSpinner.jsx';
 import hotels from '../data/hotels.json';
 import images from '../data/images.js';
 import FancySelect from '../components/FancySelect.jsx';
+import { getApiErrorMessage, hotelsApi } from '../services/api.js';
 
 function getStoredSearch() {
   const savedSearch = localStorage.getItem('traveltest_hotel_search');
@@ -35,23 +36,47 @@ function HotelResultsPage() {
   const [minimumRating, setMinimumRating] = useState('0');
   const [selectedAmenities, setSelectedAmenities] = useState([]);
   const [sortBy, setSortBy] = useState('price-asc');
+  const [availableHotels, setAvailableHotels] = useState([]);
+  const [apiError, setApiError] = useState('');
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setIsLoading(false), 700);
-    return () => window.clearTimeout(timer);
-  }, []);
+    let isMounted = true;
+    setIsLoading(true);
+    setApiError('');
 
-  const amenities = useMemo(() => [...new Set(hotels.flatMap((hotel) => hotel.amenities))].sort(), []);
+    hotelsApi.search(searchDetails?.city ? { city: searchDetails.city } : {})
+      .then((apiHotels) => {
+        if (isMounted) {
+          setAvailableHotels(apiHotels);
+        }
+      })
+      .catch((error) => {
+        if (isMounted) {
+          const fallbackHotels = searchDetails
+            ? hotels.filter((hotel) => hotel.city.toLowerCase() === searchDetails.city.toLowerCase())
+            : hotels;
+          setAvailableHotels(fallbackHotels);
+          setApiError(getApiErrorMessage(error, 'Showing local sample hotels because the backend is not available.'));
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [searchDetails]);
+
+  const amenities = useMemo(() => [...new Set(availableHotels.flatMap((hotel) => hotel.amenities || []))].sort(), [availableHotels]);
 
   const results = useMemo(() => {
-    const cityFilteredHotels = searchDetails
-      ? hotels.filter((hotel) => hotel.city.toLowerCase() === searchDetails.city.toLowerCase())
-      : hotels;
-
-    const filteredHotels = cityFilteredHotels.filter((hotel) => {
+    const filteredHotels = availableHotels.filter((hotel) => {
       const matchesPrice = hotel.pricePerNight <= Number(maxPrice);
       const matchesRating = hotel.rating >= Number(minimumRating);
-      const matchesAmenities = selectedAmenities.every((amenity) => hotel.amenities.includes(amenity));
+      const matchesAmenities = selectedAmenities.every((amenity) => hotel.amenities?.includes(amenity));
       return matchesPrice && matchesRating && matchesAmenities;
     });
 
@@ -70,7 +95,7 @@ function HotelResultsPage() {
 
       return first.pricePerNight - second.pricePerNight;
     });
-  }, [maxPrice, minimumRating, searchDetails, selectedAmenities, sortBy]);
+  }, [availableHotels, maxPrice, minimumRating, selectedAmenities, sortBy]);
 
   const toggleAmenity = (amenity) => {
     setSelectedAmenities((current) =>
@@ -199,6 +224,12 @@ function HotelResultsPage() {
           </aside>
 
           <div>
+            {apiError ? (
+              <p className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700">
+                {apiError}
+              </p>
+            ) : null}
+
             <div className="mb-5 flex flex-col gap-4 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-sm font-bold uppercase tracking-wide text-slate-500" data-testid="hotel-result-count">
@@ -243,7 +274,7 @@ function HotelResultsPage() {
               />
             ) : (
               <div className="grid gap-6 xl:grid-cols-2">
-                {results.map((hotel) => (
+                {results.map((hotel, index) => (
                   <article
                     key={hotel.id}
                     className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl"
@@ -251,7 +282,7 @@ function HotelResultsPage() {
                   >
                     <div className="relative h-56">
                       <img
-                        src={hotel.image}
+                        src={hotel.image || images.featuredHotels[index % images.featuredHotels.length] || images.hotelBanner}
                         alt={`${hotel.name} in ${hotel.city}`}
                         loading="lazy"
                         className="h-full w-full object-cover"
@@ -277,7 +308,7 @@ function HotelResultsPage() {
                       <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{hotel.address}</p>
 
                       <div className="mt-4 flex flex-wrap gap-2">
-                        {hotel.amenities.map((amenity) => (
+                        {(hotel.amenities || []).map((amenity) => (
                           <span key={amenity} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
                             {amenity}
                           </span>

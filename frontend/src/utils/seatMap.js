@@ -3,7 +3,7 @@ import seatOverrides from '../data/seats.json';
 const letters = ['A', 'B', 'C', 'D'];
 
 function getFlightNumberSeed(flightId = '') {
-  return Number(flightId.replace(/\D/g, '')) || 1001;
+  return Number(String(flightId).replace(/\D/g, '')) || 1001;
 }
 
 export function generateSeatMap(flightId) {

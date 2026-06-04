@@ -4,7 +4,7 @@ import AuthLayout from '../components/AuthLayout.jsx';
 import Button from '../components/Button.jsx';
 import Card from '../components/Card.jsx';
 import images from '../data/images.js';
-import users from '../data/users.json';
+import { authApi } from '../services/api.js';
 
 const initialForm = {
   fullName: '',
@@ -18,7 +18,6 @@ const initialForm = {
 
 function validateRegistration(form) {
   const errors = {};
-  const duplicateUser = users.some((user) => user.email.toLowerCase() === form.email.trim().toLowerCase());
 
   if (!form.fullName.trim()) {
     errors.fullName = 'Full name is required.';
@@ -30,8 +29,6 @@ function validateRegistration(form) {
     errors.email = 'Email is required.';
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
     errors.email = 'Enter a valid email address.';
-  } else if (duplicateUser) {
-    errors.email = 'An account with this email already exists.';
   }
 
   if (!form.phone.trim()) {
@@ -80,7 +77,7 @@ function RegisterPage() {
     setSuccessMessage('');
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     const validationErrors = validateRegistration(form);
     setErrors(validationErrors);
@@ -89,8 +86,45 @@ function RegisterPage() {
       return;
     }
 
-    setSuccessMessage('Registration successful. You can now login with your new account details.');
-    setForm(initialForm);
+    const nameParts = form.fullName.trim().split(/\s+/);
+    const first_name = nameParts[0] || '';
+    const last_name = nameParts.slice(1).join(' ') || '';
+
+    const payload = {
+      username: form.email.trim(),
+      email: form.email.trim(),
+      password: form.password,
+      password2: form.confirmPassword,
+      first_name,
+      last_name,
+      phone: form.phone.trim(),
+      gender: form.gender,
+    };
+
+    try {
+      await authApi.register(payload);
+      setSuccessMessage('Registration successful. You can now login with your new account details.');
+      setForm(initialForm);
+      setErrors({});
+    } catch (error) {
+      if (error.response?.data) {
+        const apiErrors = {};
+        const data = error.response.data;
+        if (data.email) apiErrors.email = Array.isArray(data.email) ? data.email[0] : data.email;
+        if (data.username) apiErrors.email = Array.isArray(data.username) ? data.username[0] : data.username;
+        if (data.password) apiErrors.password = Array.isArray(data.password) ? data.password[0] : data.password;
+        if (data.password2) apiErrors.confirmPassword = Array.isArray(data.password2) ? data.password2[0] : data.password2;
+        if (data.first_name) apiErrors.fullName = Array.isArray(data.first_name) ? data.first_name[0] : data.first_name;
+        if (data.phone) apiErrors.phone = Array.isArray(data.phone) ? data.phone[0] : data.phone;
+        if (data.gender) apiErrors.gender = Array.isArray(data.gender) ? data.gender[0] : data.gender;
+        
+        if (Object.keys(apiErrors).length > 0) {
+          setErrors(apiErrors);
+          return;
+        }
+      }
+      setErrors({ email: 'Registration failed. Please check your inputs and try again.' });
+    }
   };
 
   return (

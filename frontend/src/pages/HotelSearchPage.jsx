@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../components/Button.jsx';
 import Card from '../components/Card.jsx';
 import FancySelect from '../components/FancySelect.jsx';
 import hotels from '../data/hotels.json';
 import images from '../data/images.js';
+import { hotelsApi } from '../services/api.js';
 
 const today = new Date().toISOString().split('T')[0];
 
@@ -54,8 +55,29 @@ function HotelSearchPage() {
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [hotelOptions, setHotelOptions] = useState(hotels);
 
-  const cities = useMemo(() => [...new Set(hotels.map((hotel) => hotel.city))].sort(), []);
+  useEffect(() => {
+    let isMounted = true;
+
+    hotelsApi.search()
+      .then((apiHotels) => {
+        if (isMounted && apiHotels.length > 0) {
+          setHotelOptions(apiHotels);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setHotelOptions(hotels);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const cities = useMemo(() => [...new Set(hotelOptions.map((hotel) => hotel.city))].sort(), [hotelOptions]);
   const suggestions = useMemo(() => {
     const query = form.city.trim().toLowerCase();
     return cities.filter((city) => city.toLowerCase().includes(query)).slice(0, 6);

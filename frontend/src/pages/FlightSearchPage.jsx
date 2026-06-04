@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../components/Button.jsx';
 import Card from '../components/Card.jsx';
 import FancySelect from '../components/FancySelect.jsx';
 import flights from '../data/flights.json';
 import images from '../data/images.js';
+import { flightsApi } from '../services/api.js';
 
 const today = new Date().toISOString().split('T')[0];
 
@@ -57,13 +58,34 @@ function FlightSearchPage() {
   const navigate = useNavigate();
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
+  const [flightOptions, setFlightOptions] = useState(flights);
 
-  const cities = useMemo(() => {
-    const allCities = flights.flatMap((flight) => [flight.source, flight.destination]);
-    return [...new Set(allCities)].sort();
+  useEffect(() => {
+    let isMounted = true;
+
+    flightsApi.search()
+      .then((apiFlights) => {
+        if (isMounted && apiFlights.length > 0) {
+          setFlightOptions(apiFlights);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setFlightOptions(flights);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  const travelClasses = useMemo(() => [...new Set(flights.map((flight) => flight.travelClass))].sort(), []);
+  const cities = useMemo(() => {
+    const allCities = flightOptions.flatMap((flight) => [flight.source, flight.destination]);
+    return [...new Set(allCities)].sort();
+  }, [flightOptions]);
+
+  const travelClasses = useMemo(() => [...new Set(flightOptions.map((flight) => flight.travelClass).filter(Boolean))].sort(), [flightOptions]);
 
   const updateField = (event) => {
     const { name, value } = event.target;

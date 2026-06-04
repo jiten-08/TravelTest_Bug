@@ -4,7 +4,7 @@ import AuthLayout from '../components/AuthLayout.jsx';
 import Button from '../components/Button.jsx';
 import Card from '../components/Card.jsx';
 import images from '../data/images.js';
-import users from '../data/users.json';
+import { authApi } from '../services/api.js';
 
 const initialForm = {
   email: '',
@@ -46,7 +46,7 @@ function LoginPage() {
     setAuthError('');
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     const validationErrors = validateLogin(form);
     setErrors(validationErrors);
@@ -55,29 +55,32 @@ function LoginPage() {
       return;
     }
 
-    const user = users.find(
-      (candidate) =>
-        candidate.email.toLowerCase() === form.email.trim().toLowerCase() && candidate.password === form.password,
-    );
+    try {
+      const response = await authApi.login({
+        username: form.email.trim(),
+        password: form.password,
+      });
 
-    if (!user) {
-      setAuthError('Invalid email or password.');
-      return;
+      const { access, refresh, user } = response.data;
+
+      const session = {
+        id: user.id,
+        name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username,
+        email: user.email,
+        role: user.role,
+        rememberMe: form.rememberMe,
+        loggedInAt: new Date().toISOString(),
+      };
+
+      localStorage.setItem('traveltest_user_session', JSON.stringify(session));
+      localStorage.setItem('traveltest_access_token', access);
+      localStorage.setItem('traveltest_refresh_token', refresh);
+      
+      const from = location.state?.from || '/';
+      navigate(from, { replace: true });
+    } catch (error) {
+      setAuthError(error.response?.data?.detail || 'Invalid email or password.');
     }
-
-    const session = {
-      id: user.id,
-      name: `${user.firstName} ${user.lastName}`,
-      email: user.email,
-      role: user.role,
-      rememberMe: form.rememberMe,
-      loggedInAt: new Date().toISOString(),
-    };
-
-    localStorage.setItem('traveltest_user_session', JSON.stringify(session));
-    localStorage.setItem('traveltest_access_token', `fake-jwt-token-${user.id}`);
-    const from = location.state?.from || '/';
-    navigate(from, { replace: true });
   };
 
   return (

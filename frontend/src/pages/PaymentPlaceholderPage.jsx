@@ -5,6 +5,7 @@ import Button from '../components/Button.jsx';
 import payments from '../data/payments.json';
 import images from '../data/images.js';
 import FancySelect from '../components/FancySelect.jsx';
+import { bookingsApi, getApiErrorMessage } from '../services/api.js';
 
 const initialCardForm = {
   cardNumber: '',
@@ -147,18 +148,31 @@ function PaymentPlaceholderPage() {
   const [selectedRoomTypeId, setSelectedRoomTypeId] = useState('');
   const [errors, setErrors] = useState({});
   const [successMessage, setSuccessMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const hotelRoomTypes = useMemo(() => {
     if (bookingType !== 'hotel' || !bookingItem) {
       return [];
     }
 
-    const hotelInventory = getHotelInventory(bookingItem.id);
+    const hasBackendRoomTypes = Boolean(bookingItem.roomTypes?.length);
+    const hotelInventory = hasBackendRoomTypes ? {} : getHotelInventory(bookingItem.id);
     const basePrice = bookingItem.pricePerNight || 0;
 
-    return defaultHotelRoomOptions.map((room) => ({
+    const backendRoomTypes = hasBackendRoomTypes
+      ? bookingItem.roomTypes.map((room) => ({
+          id: room.code || room.id,
+          label: room.label,
+          description: room.description || 'Comfortable room for your stay.',
+          priceOffset: room.priceOffset || 0,
+          defaultAvailable: room.defaultAvailable || room.available || 0,
+          available: room.available ?? room.defaultAvailable ?? 0,
+        }))
+      : defaultHotelRoomOptions;
+
+    return backendRoomTypes.map((room) => ({
       ...room,
-      available: hotelInventory[room.id] ?? room.defaultAvailable,
+      available: hasBackendRoomTypes ? room.available : hotelInventory[room.id] ?? room.defaultAvailable,
       price: basePrice + room.priceOffset,
     }));
   }, [bookingItem, bookingType]);
@@ -326,7 +340,28 @@ function formatPromoMessage(promo, discountAmount) {
     return {};
   };
 
-  const completePayment = () => {
+  const createLocalBooking = (bookingId) => ({
+    bookingId,
+    bookingType,
+    item: bookingItem,
+    searchDetails,
+    selectedRoomType: selectedRoomType?.label || null,
+    selectedRoomTypeId: selectedRoomTypeId || null,
+    selectedRoomPrice,
+    selectedSeats,
+    seatSummary,
+    customer: userSession || null,
+    paymentMethod: activeMethod,
+    paymentStatus: 'success',
+    bookingStatus: 'confirmed',
+    baseAmount: amounts.baseAmount,
+    taxesAndFees: amounts.taxesAndFees,
+    discount,
+    totalPaid: amounts.finalPayable,
+    bookingDateTime: new Date().toISOString(),
+  });
+
+  const completePayment = async () => {
     const validationErrors = validatePayment();
     setErrors(validationErrors);
 
@@ -335,35 +370,69 @@ function formatPromoMessage(promo, discountAmount) {
     }
 
     const bookingId = `BK-${Date.now()}`;
-    if (bookingType === 'hotel' && selectedRoomType) {
-      decrementHotelInventory(bookingItem.id, selectedRoomTypeId, Number(searchDetails?.rooms || 1));
-    }
-
-    const booking = {
-      bookingId,
-      bookingType,
-      item: bookingItem,
-      searchDetails,
-      selectedRoomType: selectedRoomType?.label || null,
-      selectedRoomTypeId: selectedRoomTypeId || null,
-      selectedRoomPrice,
-      selectedSeats,
-      seatSummary,
-      customer: userSession || null,
-      paymentMethod: activeMethod,
-      paymentStatus: 'success',
-      baseAmount: amounts.baseAmount,
-      taxesAndFees: amounts.taxesAndFees,
-      discount,
-      totalPaid: amounts.finalPayable,
-      bookingDateTime: new Date().toISOString(),
+    const localBooking = createLocalBooking(bookingId);
+    const payload = {
+      booking_type: bookingType,
+      flight: bookingType === 'flight' ? bookingItem.id : null,
+      hotel: bookingType === 'hotel' ? bookingItem.id : null,
+      selected_room_type: bookingType === 'hotel' ? selectedRoomTypeId : null,
+      search_details: {
+        ...searchDetails,
+        selectedSeats,
+        seatSummary,
+        baseAmount: amounts.baseAmount,
+        taxesAndFees: amounts.taxesAndFees,
+        discount,
+      },
+      amount_paid: amounts.finalPayable,
+      currency: 'INR',
+      payment_method: activeMethod,
+      payment_status: 'success',
     };
 
-    const existingBookings = getStoredJson('traveltest_booking_history') || [];
-    localStorage.setItem('traveltest_current_booking', JSON.stringify(booking));
-    localStorage.setItem('traveltest_booking_history', JSON.stringify([booking, ...existingBookings]));
-    setSuccessMessage('Payment successful. Redirecting to confirmation.');
-    navigate('/booking/confirmation');
+    setIsSubmitting(true);
+    setErrors({});
+
+    try {
+      const apiBooking = await bookingsApi.create(payload);
+      const confirmedBooking = {
+        ...localBooking,
+        ...apiBooking,
+        bookingId: apiBooking.bookingId || localBooking.bookingId,
+        item: apiBooking.item || localBooking.item,
+        selectedSeats,
+        seatSummary,
+        customer: userSession || null,
+        totalPaid: apiBooking.amountPaid || localBooking.totalPaid,
+        bookingDateTime: apiBooking.bookingDateTime || localBooking.bookingDateTime,
+      };
+
+      localStorage.setItem('traveltest_current_booking', JSON.stringify(confirmedBooking));
+      setSuccessMessage('Payment successful. Redirecting to confirmation.');
+      navigate('/booking/confirmation');
+    } catch (error) {
+      const errorMessage = getApiErrorMessage(error, 'Could not create the booking. Please try again.');
+      const canUseLocalFallback =
+        error?.response?.status === 400 &&
+        /invalid pk|incorrect type|does not exist|required/i.test(errorMessage);
+
+      if (canUseLocalFallback) {
+        if (bookingType === 'hotel' && selectedRoomType) {
+          decrementHotelInventory(bookingItem.id, selectedRoomTypeId, Number(searchDetails?.rooms || 1));
+        }
+
+        const existingBookings = getStoredJson('traveltest_booking_history') || [];
+        localStorage.setItem('traveltest_current_booking', JSON.stringify(localBooking));
+        localStorage.setItem('traveltest_booking_history', JSON.stringify([localBooking, ...existingBookings]));
+        setSuccessMessage('Payment successful. Redirecting to confirmation.');
+        navigate('/booking/confirmation');
+        return;
+      }
+
+      setErrors({ payment: errorMessage });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -591,8 +660,8 @@ function formatPromoMessage(promo, discountAmount) {
               </p>
             ) : null}
 
-            <Button type="button" onClick={completePayment} className="mt-6 w-full" data-testid="payment-pay-button">
-              {activeMethod === 'netbanking' ? 'Proceed to Pay' : 'Pay now'}
+            <Button type="button" onClick={completePayment} disabled={isSubmitting} className="mt-6 w-full" data-testid="payment-pay-button">
+              {isSubmitting ? 'Processing...' : activeMethod === 'netbanking' ? 'Proceed to Pay' : 'Pay now'}
             </Button>
           </div>
 

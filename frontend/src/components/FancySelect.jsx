@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-function FancySelect({ id, name, value, onChange, options = [], placeholder = 'Select', label, className = '' }) {
+function FancySelect({ id, name, value, onChange, options = [], placeholder = 'Select', className = '' }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 

@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Button from '../components/Button.jsx';
 import Badge from '../components/Badge.jsx';
-import users from '../data/users.json';
+import { authApi, bookingsApi } from '../services/api.js';
 import images from '../data/images.js';
 import FancySelect from '../components/FancySelect.jsx';
 
@@ -13,37 +13,125 @@ function getJson(key) {
 
 function UserProfilePage() {
   const session = getJson('traveltest_user_session');
-  const matchingUser = users.find((user) => user.email === session?.email);
-  const bookings = useMemo(() => getJson('traveltest_booking_history') || [], []);
+  const [bookings, setBookings] = useState(getJson('traveltest_booking_history') || []);
   const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   const [form, setForm] = useState({
-    name: session?.name || `${matchingUser?.firstName || ''} ${matchingUser?.lastName || ''}`.trim(),
-    email: session?.email || matchingUser?.email || '',
-    phone: session?.phone || matchingUser?.phone || '',
-    gender: session?.gender || matchingUser?.gender || '',
-    memberSince: session?.loggedInAt || new Date().toISOString(),
+    name: session?.name || '',
+    email: session?.email || '',
+    phone: '',
+    gender: '',
+    memberSince: new Date().toISOString(),
   });
 
   const recentBookings = useMemo(() => bookings.slice(0, 3), [bookings]);
+
+  useEffect(() => {
+    if (!session) return;
+
+    let isMounted = true;
+    const fetchProfile = async () => {
+      try {
+        const response = await authApi.me();
+        const user = response.data;
+        if (isMounted) {
+          setForm({
+            name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username,
+            email: user.email,
+            phone: user.phone || '',
+            gender: user.gender || '',
+            memberSince: user.created_at || new Date().toISOString(),
+          });
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-undef
+        console.error('Failed to fetch profile', err);
+      }
+    };
+
+    fetchProfile();
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!session) {
+      return undefined;
+    }
+
+    let isMounted = true;
+
+    bookingsApi.list()
+      .then((apiBookings) => {
+        if (isMounted) {
+          setBookings(apiBookings);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setBookings(getJson('traveltest_booking_history') || []);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [session]);
 
   const updateField = (event) => {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
     setSuccessMessage('');
+    setErrorMessage('');
   };
 
-  const saveProfile = (event) => {
+  const saveProfile = async (event) => {
     event.preventDefault();
-    const updatedSession = {
-      ...(session || {}),
-      name: form.name,
-      email: form.email,
-      phone: form.phone,
+    setSuccessMessage('');
+    setErrorMessage('');
+
+    const nameParts = form.name.trim().split(/\s+/);
+    const first_name = nameParts[0] || '';
+    const last_name = nameParts.slice(1).join(' ') || '';
+
+    const payload = {
+      first_name,
+      last_name,
+      email: form.email.trim(),
+      phone: form.phone.trim(),
       gender: form.gender,
-      loggedInAt: form.memberSince,
     };
-    localStorage.setItem('traveltest_user_session', JSON.stringify(updatedSession));
-    setSuccessMessage('Profile changes saved locally.');
+
+    try {
+      const response = await authApi.updateProfile(payload);
+      const user = response.data;
+
+      const updatedSession = {
+        ...(session || {}),
+        name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username,
+        email: user.email,
+        phone: user.phone || '',
+        gender: user.gender || '',
+      };
+      
+      localStorage.setItem('traveltest_user_session', JSON.stringify(updatedSession));
+      setSuccessMessage('Profile changes saved successfully.');
+      
+      // eslint-disable-next-line no-undef
+      window.dispatchEvent(new Event('storage'));
+    } catch (error) {
+      if (error.response?.data) {
+        const errors = error.response.data;
+        const msg = Object.keys(errors)
+          .map((k) => `${k}: ${Array.isArray(errors[k]) ? errors[k].join(', ') : errors[k]}`)
+          .join(' | ');
+        setErrorMessage(msg || 'Failed to update profile.');
+      } else {
+        setErrorMessage('Failed to update profile.');
+      }
+    }
   };
 
   if (!session) {
@@ -79,7 +167,7 @@ function UserProfilePage() {
         </div>
       </div>
 
-      <div className="mx-auto -mt-10 grid max-w-7xl gap-6 px-4 sm:px-6 lg:grid-cols-[360px_1fr] lg:px-8">
+      <div className="mx-auto grid max-w-7xl gap-6 px-4 pt-8 sm:px-6 lg:grid-cols-[360px_1fr] lg:px-8">
         <aside className="rounded-3xl border border-slate-100 bg-white p-6 shadow-xl">
           <div className="flex items-center gap-4">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-50 text-2xl font-bold text-primary-700">
@@ -131,12 +219,14 @@ function UserProfilePage() {
                   name="gender"
                   value={form.gender}
                   onChange={updateField}
+                  className="mt-2"
                   options={[{ value: '', label: 'Select gender' }, { value: 'female', label: 'Female' }, { value: 'male', label: 'Male' }, { value: 'other', label: 'Other' }]}
                   data-testid="profile-gender-select"
                 />
               </label>
             </div>
             {successMessage ? <p className="mt-4 text-sm font-semibold text-green-700">{successMessage}</p> : null}
+            {errorMessage ? <p className="mt-4 text-sm font-semibold text-red-600">{errorMessage}</p> : null}
             <Button type="submit" className="mt-6" data-testid="profile-save-button">
               Save changes
             </Button>
@@ -159,9 +249,9 @@ function UserProfilePage() {
             <div className="mt-5 grid gap-3">
               {recentBookings.length > 0 ? (
                 recentBookings.map((booking) => (
-                  <div key={booking.bookingId} className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-                    <span className="font-semibold text-slate-950">{booking.bookingId}</span> | {booking.bookingType} | Rs.{' '}
-                    {booking.totalPaid?.toLocaleString('en-IN')}
+                  <div key={booking.bookingId || booking.id} className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+                    <span className="font-semibold text-slate-950">{booking.bookingId || booking.id}</span> | {booking.bookingType} | Rs.{' '}
+                    {Number(booking.totalPaid || booking.amountPaid || 0).toLocaleString('en-IN')}
                   </div>
                 ))
               ) : (

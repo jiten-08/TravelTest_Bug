@@ -4,7 +4,7 @@ import AuthLayout from '../components/AuthLayout.jsx';
 import Button from '../components/Button.jsx';
 import Card from '../components/Card.jsx';
 import images from '../data/images.js';
-import users from '../data/users.json';
+import { authApi } from '../services/api.js';
 
 function validateEmail(email) {
   if (!email.trim()) {
@@ -31,7 +31,7 @@ function ForgotPasswordPage() {
     setStatusType('');
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     const emailError = validateEmail(email);
     setValidationMessage(emailError);
@@ -40,16 +40,14 @@ function ForgotPasswordPage() {
       return;
     }
 
-    const matchingUser = users.find((user) => user.email.toLowerCase() === email.trim().toLowerCase());
-
-    if (!matchingUser) {
+    try {
+      const response = await authApi.forgotPassword({ email: email.trim() });
+      setStatusType('success');
+      setStatusMessage(response.data.message || 'Password reset instructions have been sent to your email.');
+    } catch (error) {
       setStatusType('error');
-      setStatusMessage('No account was found for this email address.');
-      return;
+      setStatusMessage(error.response?.data?.error || 'No account was found for this email address.');
     }
-
-    setStatusType('success');
-    setStatusMessage('Password reset instructions have been sent to your email.');
   };
 
   return (
