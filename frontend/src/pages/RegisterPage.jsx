@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from '../components/AuthLayout.jsx';
 import Button from '../components/Button.jsx';
 import Card from '../components/Card.jsx';
@@ -63,9 +63,9 @@ function validateRegistration(form) {
 }
 
 function RegisterPage() {
+  const navigate = useNavigate();
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
-  const [successMessage, setSuccessMessage] = useState('');
 
   const updateField = (event) => {
     const { name, type, checked, value } = event.target;
@@ -74,7 +74,6 @@ function RegisterPage() {
       [name]: type === 'checkbox' ? checked : value,
     }));
     setErrors((current) => ({ ...current, [name]: '' }));
-    setSuccessMessage('');
   };
 
   const handleSubmit = async (event) => {
@@ -103,9 +102,12 @@ function RegisterPage() {
 
     try {
       await authApi.register(payload);
-      setSuccessMessage('Registration successful. You can now login with your new account details.');
       setForm(initialForm);
       setErrors({});
+      navigate('/login', {
+        replace: true,
+        state: { message: 'Registration successful. Please login with your new account details.' },
+      });
     } catch (error) {
       if (error.response?.data) {
         const apiErrors = {};
@@ -139,12 +141,6 @@ function RegisterPage() {
             Register for TravelTest
           </h1>
         </div>
-
-        {successMessage ? (
-          <p className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700" data-testid="register-success-message">
-            {successMessage}
-          </p>
-        ) : null}
 
         <form className="grid gap-5 sm:grid-cols-2" onSubmit={handleSubmit} noValidate data-testid="register-form">
           <div className="sm:col-span-2">

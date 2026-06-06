@@ -15,6 +15,13 @@ const initialCardForm = {
   otp: '',
 };
 
+const emptyTraveler = {
+  fullName: '',
+  age: '',
+  gender: '',
+  phone: '',
+};
+
 function getStoredJson(key) {
   const value = localStorage.getItem(key);
   return value ? JSON.parse(value) : null;
@@ -29,6 +36,14 @@ function calculateNights(searchDetails) {
   const checkOut = new Date(searchDetails.checkOutDate);
   const diff = Math.round((checkOut - checkIn) / (1000 * 60 * 60 * 24));
   return diff > 0 ? diff : 1;
+}
+
+function getTravelerCount(bookingType, searchDetails) {
+  if (bookingType === 'hotel') {
+    return Math.max(Number(searchDetails?.guests || 1), 1);
+  }
+
+  return Math.max(Number(searchDetails?.passengers || 1), 1);
 }
 
 const defaultHotelRoomOptions = [
@@ -149,6 +164,11 @@ function PaymentPlaceholderPage() {
   const [errors, setErrors] = useState({});
   const [successMessage, setSuccessMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const travelerCount = getTravelerCount(bookingType, searchDetails);
+  const travelerLabel = bookingType === 'hotel' ? 'Tourist' : 'Passenger';
+  const [travelerDetails, setTravelerDetails] = useState(() =>
+    Array.from({ length: travelerCount }, () => ({ ...emptyTraveler })),
+  );
 
   const hotelRoomTypes = useMemo(() => {
     if (bookingType !== 'hotel' || !bookingItem) {
@@ -187,6 +207,12 @@ function PaymentPlaceholderPage() {
   }, [userSession, navigate, location.pathname, location.search]);
 
   useEffect(() => {
+    setTravelerDetails((current) =>
+      Array.from({ length: travelerCount }, (_, index) => current[index] || { ...emptyTraveler }),
+    );
+  }, [travelerCount]);
+
+  useEffect(() => {
     if (bookingType !== 'hotel') {
       return;
     }
@@ -204,10 +230,11 @@ function PaymentPlaceholderPage() {
   }, [bookingType, hotelRoomTypes, searchDetails?.rooms, selectedRoomTypeId]);
 
   const amounts = useMemo(() => {
+    const passengerCount = Math.max(Number(searchDetails?.passengers || 1), 1);
     const baseAmount =
       bookingType === 'hotel'
         ? selectedRoomPrice * calculateNights(searchDetails) * Number(searchDetails?.rooms || 1)
-        : (bookingItem?.price || 0) + Number(seatSummary.seatCharges || 0);
+        : (bookingItem?.price || 0) * passengerCount + Number(seatSummary.seatCharges || 0);
     const taxesAndFees = Math.round(baseAmount * 0.12 + 299);
     const finalPayable = Math.max(baseAmount + taxesAndFees - discount, 0);
     return { baseAmount, taxesAndFees, finalPayable };
@@ -267,6 +294,13 @@ function formatPromoMessage(promo, discountAmount) {
     setErrors((current) => ({ ...current, [name]: '' }));
   };
 
+  const updateTravelerField = (index, field, value) => {
+    setTravelerDetails((current) =>
+      current.map((traveler, travelerIndex) => (travelerIndex === index ? { ...traveler, [field]: value } : traveler)),
+    );
+    setErrors((current) => ({ ...current, travelers: '' }));
+  };
+
   const applyPromo = (code = promoCode) => {
     const enteredCode = code.trim().toUpperCase();
     const promo = payments.promoCodes.find((item) => item.code === enteredCode);
@@ -300,6 +334,14 @@ function formatPromoMessage(promo, discountAmount) {
   const validatePayment = () => {
     if (!bookingItem) {
       return { payment: 'Select a flight or hotel before making payment.' };
+    }
+
+    const missingTraveler = travelerDetails.find(
+      (traveler) => !traveler.fullName.trim() || !traveler.age || !traveler.gender || !traveler.phone.trim(),
+    );
+
+    if (missingTraveler) {
+      return { travelers: `Enter all ${travelerLabel.toLowerCase()} details before payment.` };
     }
 
     if (activeMethod === 'card') {
@@ -340,11 +382,17 @@ function formatPromoMessage(promo, discountAmount) {
     return {};
   };
 
+  const enrichedSearchDetails = {
+    ...searchDetails,
+    travelerDetails,
+  };
+
   const createLocalBooking = (bookingId) => ({
     bookingId,
     bookingType,
     item: bookingItem,
-    searchDetails,
+    searchDetails: enrichedSearchDetails,
+    travelerDetails,
     selectedRoomType: selectedRoomType?.label || null,
     selectedRoomTypeId: selectedRoomTypeId || null,
     selectedRoomPrice,
@@ -377,7 +425,7 @@ function formatPromoMessage(promo, discountAmount) {
       hotel: bookingType === 'hotel' ? bookingItem.id : null,
       selected_room_type: bookingType === 'hotel' ? selectedRoomTypeId : null,
       search_details: {
-        ...searchDetails,
+        ...enrichedSearchDetails,
         selectedSeats,
         seatSummary,
         baseAmount: amounts.baseAmount,
@@ -402,6 +450,7 @@ function formatPromoMessage(promo, discountAmount) {
         item: apiBooking.item || localBooking.item,
         selectedSeats,
         seatSummary,
+        travelerDetails,
         customer: userSession || null,
         totalPaid: apiBooking.amountPaid || localBooking.totalPaid,
         bookingDateTime: apiBooking.bookingDateTime || localBooking.bookingDateTime,
@@ -654,6 +703,83 @@ function formatPromoMessage(promo, discountAmount) {
               </div>
             ) : null}
 
+            <div className="mt-6 rounded-3xl border border-slate-100 bg-slate-50 p-5" data-testid="traveler-details-form">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-wide text-accent-500">
+                    {bookingType === 'hotel' ? 'Tourist details' : 'Passenger details'}
+                  </p>
+                  <h2 className="mt-1 font-heading text-xl font-bold text-slate-950">
+                    {travelerCount} {travelerLabel.toLowerCase()}{travelerCount === 1 ? '' : 's'}
+                  </h2>
+                </div>
+                <Badge>{bookingType || 'booking'}</Badge>
+              </div>
+
+              <div className="mt-5 grid gap-4">
+                {travelerDetails.map((traveler, index) => (
+                  <div key={index} className="rounded-2xl border border-slate-100 bg-white p-4">
+                    <p className="text-sm font-bold text-slate-900">
+                      {travelerLabel} {index + 1}
+                    </p>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <label className="block">
+                        <span className="text-sm font-semibold text-slate-700">Full name</span>
+                        <input
+                          value={traveler.fullName}
+                          onChange={(event) => updateTravelerField(index, 'fullName', event.target.value)}
+                          className="travel-field mt-2"
+                          data-testid={`traveler-${index + 1}-name-input`}
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-sm font-semibold text-slate-700">Phone</span>
+                        <input
+                          value={traveler.phone}
+                          onChange={(event) => updateTravelerField(index, 'phone', event.target.value)}
+                          className="travel-field mt-2"
+                          data-testid={`traveler-${index + 1}-phone-input`}
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-sm font-semibold text-slate-700">Age</span>
+                        <input
+                          type="number"
+                          min="1"
+                          value={traveler.age}
+                          onChange={(event) => updateTravelerField(index, 'age', event.target.value)}
+                          className="travel-field mt-2"
+                          data-testid={`traveler-${index + 1}-age-input`}
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-sm font-semibold text-slate-700">Gender</span>
+                        <FancySelect
+                          id={`traveler-${index + 1}-gender-select`}
+                          name={`traveler-${index + 1}-gender`}
+                          value={traveler.gender}
+                          onChange={(event) => updateTravelerField(index, 'gender', event.target.value)}
+                          className="mt-2"
+                          options={[
+                            { value: '', label: 'Select gender' },
+                            { value: 'female', label: 'Female' },
+                            { value: 'male', label: 'Male' },
+                            { value: 'other', label: 'Other' },
+                          ]}
+                          data-testid={`traveler-${index + 1}-gender-select`}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {errors.travelers ? (
+                <p className="mt-3 text-sm font-semibold text-red-600" data-testid="traveler-details-validation-message">
+                  {errors.travelers}
+                </p>
+              ) : null}
+            </div>
+
             {successMessage ? (
               <p className="mt-5 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700" data-testid="payment-success-message">
                 {successMessage}
@@ -713,6 +839,8 @@ function formatPromoMessage(promo, discountAmount) {
                   {hotelRoomTypes.map((room) => {
                     const roomsRequested = Number(searchDetails?.rooms || 1);
                     const isDisabled = room.available < roomsRequested;
+                    const nights = calculateNights(searchDetails);
+                    const roomStayTotal = room.price * nights * roomsRequested;
                     return (
                       <button
                         type="button"
@@ -730,7 +858,10 @@ function formatPromoMessage(promo, discountAmount) {
                             <p className="mt-1 text-xs text-slate-500">{room.description}</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-sm font-semibold text-slate-900">Rs. {room.price.toLocaleString('en-IN')}</p>
+                            <p className="text-sm font-semibold text-slate-900">Rs. {room.price.toLocaleString('en-IN')}/night</p>
+                            <p className="mt-1 text-xs font-bold text-primary-700">
+                              Total Rs. {roomStayTotal.toLocaleString('en-IN')}
+                            </p>
                             <p className={`mt-1 text-xs font-semibold ${room.available === 0 ? 'text-red-600' : 'text-slate-500'}`}>
                               {room.available === 0 ? 'Not available' : `${room.available} rooms left`}
                             </p>

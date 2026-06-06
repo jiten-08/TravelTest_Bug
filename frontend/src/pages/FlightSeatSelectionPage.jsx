@@ -74,7 +74,8 @@ function FlightSeatSelectionPage() {
   }, [availableSeats]);
 
   const seatCharges = selectedSeats.reduce((total, seat) => total + Number(seat.extraCharge || 0), 0);
-  const totalAmount = (selectedFlight?.price || 0) + seatCharges;
+  const baseFareTotal = (selectedFlight?.price || 0) * passengerCount;
+  const totalAmount = baseFareTotal + seatCharges;
 
   const toggleSeat = (seat) => {
     if (seat.status === 'reserved') {
@@ -206,7 +207,7 @@ function FlightSeatSelectionPage() {
               <div className="mt-5 space-y-3 border-t border-slate-100 pt-5 text-sm">
                 <div className="flex justify-between text-slate-600">
                   <span>Base fare</span>
-                  <span>Rs. {selectedFlight.price.toLocaleString('en-IN')}</span>
+                  <span>Rs. {baseFareTotal.toLocaleString('en-IN')}</span>
                 </div>
                 <div className="flex justify-between text-slate-600">
                   <span>Seat charges</span>

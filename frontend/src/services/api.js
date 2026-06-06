@@ -1,12 +1,28 @@
 import axios from 'axios';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api',
+  baseURL: API_BASE_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+function clearStoredSession() {
+  localStorage.removeItem('traveltest_user_session');
+  localStorage.removeItem('traveltest_access_token');
+  localStorage.removeItem('traveltest_refresh_token');
+}
+
+function redirectToLogin() {
+  const currentPath = `${window.location.pathname}${window.location.search}`;
+
+  if (window.location.pathname !== '/login') {
+    window.location.assign(`/login?session=expired&from=${encodeURIComponent(currentPath)}`);
+  }
+}
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('traveltest_access_token');
@@ -17,6 +33,50 @@ api.interceptors.request.use((config) => {
 
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config || {};
+    const status = error.response?.status;
+    const url = originalRequest.url || '';
+    const isAuthEndpoint = url.includes('/token/');
+
+    if (status !== 401 || originalRequest._retry || isAuthEndpoint) {
+      return Promise.reject(error);
+    }
+
+    originalRequest._retry = true;
+    const refresh = localStorage.getItem('traveltest_refresh_token');
+
+    if (!refresh) {
+      clearStoredSession();
+      redirectToLogin();
+      return Promise.reject(error);
+    }
+
+    try {
+      const response = await axios.post(`${API_BASE_URL}/token/refresh/`, { refresh });
+      const access = response.data?.access;
+
+      if (!access) {
+        throw new Error('Refresh response did not include an access token.');
+      }
+
+      localStorage.setItem('traveltest_access_token', access);
+      originalRequest.headers = {
+        ...(originalRequest.headers || {}),
+        Authorization: `Bearer ${access}`,
+      };
+
+      return api(originalRequest);
+    } catch (refreshError) {
+      clearStoredSession();
+      redirectToLogin();
+      return Promise.reject(refreshError);
+    }
+  },
+);
 
 function unwrapList(data) {
   return Array.isArray(data) ? data : data?.results || [];
@@ -136,8 +196,9 @@ export function normalizeBooking(booking) {
         id: booking.hotel_detail.id,
         name: booking.hotel_detail.name,
         city: booking.hotel_detail.city,
+        address: booking.hotel_detail.address,
         price_per_night: booking.hotel_detail.price_per_night,
-        amenities: [],
+        amenities: booking.hotel_detail.amenities || [],
       })
     : null;
   const bookingType = booking.booking_type;
@@ -164,8 +225,9 @@ export function normalizeBooking(booking) {
     paymentMethod: booking.payment_method || 'payment',
     item,
     searchDetails: booking.search_details || {},
+    travelerDetails: booking.search_details?.travelerDetails || [],
     selectedRoomTypeId: booking.selected_room_type,
-    selectedRoomType: booking.selected_room_type,
+    selectedRoomType: booking.selected_room_type_label || booking.selected_room_type,
     source: 'api',
   };
 }
@@ -228,13 +290,6 @@ export const bookingsApi = {
   bookedSeats: async (flightId) => {
     const response = await api.get('/bookings/booked_seats/', { params: { flight: flightId } });
     return response.data?.seat_numbers || [];
-  },
-};
-
-export const paymentsApi = {
-  list: async () => {
-    const response = await api.get('/payments/');
-    return unwrapList(response.data);
   },
 };
 

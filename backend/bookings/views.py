@@ -4,10 +4,11 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 import uuid
 
 from .models import Booking
+from flights.models import Flight
+from hotels.models import Hotel
 from .serializers import BookingSerializer
 from hotels.models import HotelInventory
 
@@ -26,6 +27,30 @@ def get_booking_seat_numbers(booking):
 
     seat_numbers.extend(seat_summary.get('selectedSeatNumbers') or [])
     return sorted({seat for seat in seat_numbers if seat})
+
+
+def resolve_model_id(model, value, label):
+    if not value:
+        return None
+
+    if str(value).isdigit():
+        obj = model.objects.filter(pk=value).first()
+    else:
+        obj = model.objects.filter(reference_id=value).first()
+
+    if not obj:
+        raise ValueError(f"{label} not found: {value}")
+
+    return obj.id
+
+
+def get_requested_room_count(search_details):
+    try:
+        room_count = int((search_details or {}).get('rooms') or 1)
+    except (TypeError, ValueError):
+        room_count = 1
+
+    return max(room_count, 1)
 
 
 class BookingViewSet(viewsets.ModelViewSet):
@@ -60,15 +85,17 @@ class BookingViewSet(viewsets.ModelViewSet):
         """Create booking with atomic inventory decrement for hotels."""
         user = request.user
         booking_type = request.data.get('booking_type')
+        search_details = request.data.get('search_details') or {}
 
         # Generate booking ID if not provided
         booking_id = request.data.get('booking_id') or f"BOOK_{uuid.uuid4().hex[:8].upper()}"
 
         try:
             with transaction.atomic():
+                flight_id = resolve_model_id(Flight, request.data.get('flight'), 'Flight') if request.data.get('flight') else None
+                hotel_id = resolve_model_id(Hotel, request.data.get('hotel'), 'Hotel') if request.data.get('hotel') else None
+
                 if booking_type == 'flight':
-                    flight_id = request.data.get('flight')
-                    search_details = request.data.get('search_details') or {}
                     requested_seats = set()
 
                     for seat in search_details.get('selectedSeats') or []:
@@ -101,10 +128,10 @@ class BookingViewSet(viewsets.ModelViewSet):
                     booking_id=booking_id,
                     user=user,
                     booking_type=booking_type,
-                    flight_id=request.data.get('flight'),
-                    hotel_id=request.data.get('hotel'),
+                    flight_id=flight_id,
+                    hotel_id=hotel_id,
                     selected_room_type=request.data.get('selected_room_type'),
-                    search_details=request.data.get('search_details', {}),
+                    search_details=search_details,
                     amount_paid=request.data.get('amount_paid', 0),
                     currency=request.data.get('currency', 'INR'),
                     payment_method=request.data.get('payment_method'),
@@ -117,15 +144,18 @@ class BookingViewSet(viewsets.ModelViewSet):
                     room_type_code = booking.selected_room_type
                     room_type = booking.hotel.room_types.filter(code=room_type_code).first()
                     if room_type:
+                        rooms_requested = get_requested_room_count(search_details)
                         inventory = HotelInventory.objects.select_for_update().get(
                             hotel=booking.hotel,
                             room_type=room_type
                         )
-                        if inventory.available > 0:
-                            inventory.available -= 1
+                        if inventory.available >= rooms_requested:
+                            inventory.available -= rooms_requested
                             inventory.save()
                         else:
-                            raise Exception(f"No {room_type_code} rooms available")
+                            raise Exception(
+                                f"Only {inventory.available} {room_type.label} room(s) available"
+                            )
 
                 serializer = self.get_serializer(booking)
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -138,9 +168,14 @@ class BookingViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def booked_seats(self, request):
-        flight_id = request.query_params.get('flight')
-        if not flight_id:
+        flight = request.query_params.get('flight')
+        if not flight:
             return Response({'error': 'flight query parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            flight_id = resolve_model_id(Flight, flight, 'Flight')
+        except ValueError as error:
+            return Response({'error': str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
         bookings = Booking.objects.filter(
             booking_type='flight',
@@ -181,11 +216,12 @@ class BookingViewSet(viewsets.ModelViewSet):
                 if booking.booking_type == 'hotel' and booking.hotel and booking.selected_room_type:
                     room_type = booking.hotel.room_types.filter(code=booking.selected_room_type).first()
                     if room_type:
+                        rooms_to_restore = get_requested_room_count(booking.search_details)
                         inventory = HotelInventory.objects.select_for_update().get(
                             hotel=booking.hotel,
                             room_type=room_type
                         )
-                        inventory.available += 1
+                        inventory.available += rooms_to_restore
                         inventory.save()
 
                 # Update booking status

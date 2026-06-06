@@ -19,11 +19,30 @@ function getHotelInventory() {
   return savedInventory ? JSON.parse(savedInventory) : {};
 }
 
+function calculateNights(searchDetails) {
+  if (!searchDetails?.checkInDate || !searchDetails?.checkOutDate) {
+    return 1;
+  }
+
+  const checkIn = new Date(searchDetails.checkInDate);
+  const checkOut = new Date(searchDetails.checkOutDate);
+  const diff = Math.round((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+  return diff > 0 ? diff : 1;
+}
+
+function getRequestedRooms(searchDetails) {
+  return Math.max(Number(searchDetails?.rooms || 1), 1);
+}
+
 function getHotelAvailableRooms(hotel) {
+  if (hotel.inventories?.length || hotel.roomTypes?.length) {
+    return Number(hotel.roomsAvailable || 0);
+  }
+
   const inventory = getHotelInventory();
   const hotelInventory = inventory[hotel.id];
   if (!hotelInventory) {
-    return hotel.roomsAvailable;
+    return Number(hotel.roomsAvailable || 0);
   }
   return Object.values(hotelInventory).reduce((sum, count) => sum + Number(count), 0);
 }
@@ -38,6 +57,8 @@ function HotelResultsPage() {
   const [sortBy, setSortBy] = useState('price-asc');
   const [availableHotels, setAvailableHotels] = useState([]);
   const [apiError, setApiError] = useState('');
+  const nights = calculateNights(searchDetails);
+  const requestedRooms = getRequestedRooms(searchDetails);
 
   useEffect(() => {
     let isMounted = true;
@@ -77,7 +98,8 @@ function HotelResultsPage() {
       const matchesPrice = hotel.pricePerNight <= Number(maxPrice);
       const matchesRating = hotel.rating >= Number(minimumRating);
       const matchesAmenities = selectedAmenities.every((amenity) => hotel.amenities?.includes(amenity));
-      return matchesPrice && matchesRating && matchesAmenities;
+      const hasEnoughRooms = getHotelAvailableRooms(hotel) >= requestedRooms;
+      return matchesPrice && matchesRating && matchesAmenities && hasEnoughRooms;
     });
 
     return [...filteredHotels].sort((first, second) => {
@@ -95,7 +117,7 @@ function HotelResultsPage() {
 
       return first.pricePerNight - second.pricePerNight;
     });
-  }, [availableHotels, maxPrice, minimumRating, selectedAmenities, sortBy]);
+  }, [availableHotels, maxPrice, minimumRating, requestedRooms, selectedAmenities, sortBy]);
 
   const toggleAmenity = (amenity) => {
     setSelectedAmenities((current) =>
@@ -235,7 +257,10 @@ function HotelResultsPage() {
                 <p className="text-sm font-bold uppercase tracking-wide text-slate-500" data-testid="hotel-result-count">
                   {results.length} hotel{results.length === 1 ? '' : 's'} found
                 </p>
-                <p className="mt-1 text-sm text-slate-600">Prices are per night and based on local dummy data.</p>
+                <p className="mt-1 text-sm text-slate-600">
+                  Showing DB availability for {requestedRooms} room{requestedRooms === 1 ? '' : 's'} and {nights} night
+                  {nights === 1 ? '' : 's'}.
+                </p>
               </div>
               <div className="w-full md:w-72">
                 <label className="block text-sm font-semibold text-slate-700" htmlFor="hotel-sort-dropdown">
@@ -274,65 +299,79 @@ function HotelResultsPage() {
               />
             ) : (
               <div className="grid gap-6 xl:grid-cols-2">
-                {results.map((hotel, index) => (
-                  <article
-                    key={hotel.id}
-                    className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl"
-                    data-testid={`hotel-result-card-${hotel.id}`}
-                  >
-                    <div className="relative h-56">
-                      <img
-                        src={hotel.image || images.featuredHotels[index % images.featuredHotels.length] || images.hotelBanner}
-                        alt={`${hotel.name} in ${hotel.city}`}
-                        loading="lazy"
-                        className="h-full w-full object-cover"
-                        onError={(event) => {
-                          event.currentTarget.style.display = 'none';
-                        }}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" />
-                      <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3">
-                        <div>
-                          <Badge className="bg-white/90 text-slate-800">{hotel.rating} rating</Badge>
-                          <h2 className="mt-2 font-heading text-2xl font-bold text-white">{hotel.name}</h2>
+                {results.map((hotel, index) => {
+                  const availableRooms = getHotelAvailableRooms(hotel);
+                  const hasEnoughRooms = availableRooms >= requestedRooms;
+                  const stayTotal = hotel.pricePerNight * nights * requestedRooms;
+
+                  return (
+                    <article
+                      key={hotel.id}
+                      className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl"
+                      data-testid={`hotel-result-card-${hotel.id}`}
+                    >
+                      <div className="relative h-56">
+                        <img
+                          src={hotel.image || images.featuredHotels[index % images.featuredHotels.length] || images.hotelBanner}
+                          alt={`${hotel.name} in ${hotel.city}`}
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                          onError={(event) => {
+                            event.currentTarget.style.display = 'none';
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" />
+                        <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3">
+                          <div>
+                            <Badge className="bg-white/90 text-slate-800">{hotel.rating} rating</Badge>
+                            <h2 className="mt-2 font-heading text-2xl font-bold text-white">{hotel.name}</h2>
+                          </div>
+                          <Badge
+                            className={`border bg-white/95 shadow-sm ${
+                              hasEnoughRooms ? 'border-green-200 text-green-700' : 'border-red-200 text-red-700'
+                            }`}
+                          >
+                            {hasEnoughRooms ? `${availableRooms} rooms` : 'Sold out'}
+                          </Badge>
                         </div>
-                        <Badge className={`text-white ${getHotelAvailableRooms(hotel) > 0 ? 'bg-accent-500' : 'bg-red-500'}`}>
-                          {getHotelAvailableRooms(hotel) > 0 ? `${getHotelAvailableRooms(hotel)} rooms` : 'Sold out'}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <div className="p-5">
-                      <p className="text-sm font-semibold text-slate-500">{hotel.city}</p>
-                      <p className="mt-2 text-sm leading-6 text-slate-600">{hotel.description}</p>
-                      <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{hotel.address}</p>
-
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {(hotel.amenities || []).map((amenity) => (
-                          <span key={amenity} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                            {amenity}
-                          </span>
-                        ))}
                       </div>
 
-                      <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Per night</p>
-                          <p className="text-2xl font-bold text-slate-950">Rs. {hotel.pricePerNight.toLocaleString('en-IN')}</p>
+                      <div className="p-5">
+                        <p className="text-sm font-semibold text-slate-500">{hotel.city}</p>
+                        <p className="mt-2 text-sm leading-6 text-slate-600">{hotel.description}</p>
+                        <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{hotel.address}</p>
+
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {(hotel.amenities || []).map((amenity) => (
+                            <span key={amenity} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                              {amenity}
+                            </span>
+                          ))}
                         </div>
-                        <Button
-                          type="button"
-                          onClick={() => handleSelectHotel(hotel)}
-                          disabled={getHotelAvailableRooms(hotel) === 0}
-                          className="sm:min-w-36"
-                          data-testid={`select-hotel-button-${hotel.id}`}
-                        >
-                          {getHotelAvailableRooms(hotel) === 0 ? 'Unavailable' : 'Select hotel'}
-                        </Button>
+
+                        <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Per night</p>
+                            <p className="text-2xl font-bold text-slate-950">Rs. {hotel.pricePerNight.toLocaleString('en-IN')}</p>
+                            <p className="mt-1 text-sm font-semibold text-primary-700">
+                              Total Rs. {stayTotal.toLocaleString('en-IN')} for {nights} night{nights === 1 ? '' : 's'} x{' '}
+                              {requestedRooms} room{requestedRooms === 1 ? '' : 's'}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            onClick={() => handleSelectHotel(hotel)}
+                            disabled={!hasEnoughRooms}
+                            className="sm:min-w-36"
+                            data-testid={`select-hotel-button-${hotel.id}`}
+                          >
+                            {hasEnoughRooms ? 'Select hotel' : 'Unavailable'}
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  </article>
-                ))}
+                    </article>
+                  );
+                })}
               </div>
             )}
           </div>

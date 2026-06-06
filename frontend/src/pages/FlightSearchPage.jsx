@@ -13,7 +13,6 @@ const initialForm = {
   source: '',
   destination: '',
   departureDate: '',
-  returnDate: '',
   passengers: '1',
   travelClass: 'Economy',
 };
@@ -37,10 +36,6 @@ function validateSearch(form) {
     errors.departureDate = 'Select a departure date.';
   } else if (form.departureDate < today) {
     errors.departureDate = 'Departure date cannot be in the past.';
-  }
-
-  if (form.returnDate && form.departureDate && form.returnDate < form.departureDate) {
-    errors.returnDate = 'Return date cannot be before departure date.';
   }
 
   if (!form.passengers) {
@@ -151,14 +146,14 @@ function FlightSearchPage() {
               </label>
               <div className="mt-2 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition-all hover:border-primary-100">
                 <span className="text-xs font-bold uppercase tracking-wide text-slate-400">From</span>
-                <FancySelect
-                  id="flight-source-dropdown"
-                  name="source"
-                  value={form.source}
-                  onChange={updateField}
-                  options={[{ value: '', label: 'Select source' }, ...cities.map((c) => ({ value: c, label: c }))]}
-                  data-testid="flight-source-dropdown"
-                />
+                  <FancySelect
+                    id="flight-source-dropdown"
+                    name="source"
+                    value={form.source}
+                    onChange={updateField}
+                    options={[{ value: '', label: 'Select source' }, ...cities.map((c) => ({ value: c, label: c }))]}
+                    data-testid="flight-source-dropdown"
+                  />
               </div>
               {errors.source ? (
                 <p className="mt-2 text-sm font-semibold text-red-600" data-testid="flight-source-validation-message">
@@ -185,14 +180,14 @@ function FlightSearchPage() {
               </label>
               <div className="mt-2 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition-all hover:border-primary-100">
                 <span className="text-xs font-bold uppercase tracking-wide text-slate-400">To</span>
-                <FancySelect
-                  id="flight-destination-dropdown"
-                  name="destination"
-                  value={form.destination}
-                  onChange={updateField}
-                  options={[{ value: '', label: 'Select destination' }, ...cities.map((c) => ({ value: c, label: c }))]}
-                  data-testid="flight-destination-dropdown"
-                />
+                  <FancySelect
+                    id="flight-destination-dropdown"
+                    name="destination"
+                    value={form.destination}
+                    onChange={updateField}
+                    options={[{ value: '', label: 'Select destination' }, ...cities.map((c) => ({ value: c, label: c }))]}
+                    data-testid="flight-destination-dropdown"
+                  />
               </div>
               {errors.destination ? (
                 <p className="mt-2 text-sm font-semibold text-red-600" data-testid="flight-destination-validation-message">
@@ -201,7 +196,7 @@ function FlightSearchPage() {
               ) : null}
             </div>
 
-            <div className="lg:col-span-6">
+            <div className="lg:col-span-12">
               <label className="block text-sm font-bold text-slate-700" htmlFor="flight-departure-date-input">
                 Departure date
               </label>
@@ -218,27 +213,6 @@ function FlightSearchPage() {
               {errors.departureDate ? (
                 <p className="mt-2 text-sm font-semibold text-red-600" data-testid="flight-departure-date-validation-message">
                   {errors.departureDate}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="lg:col-span-6">
-              <label className="block text-sm font-bold text-slate-700" htmlFor="flight-return-date-input">
-                Return date
-              </label>
-              <input
-                id="flight-return-date-input"
-                name="returnDate"
-                type="date"
-                min={form.departureDate || today}
-                value={form.returnDate}
-                onChange={updateField}
-                className="travel-field mt-2"
-                data-testid="flight-return-date-input"
-              />
-              {errors.returnDate ? (
-                <p className="mt-2 text-sm font-semibold text-red-600" data-testid="flight-return-date-validation-message">
-                  {errors.returnDate}
                 </p>
               ) : null}
             </div>
