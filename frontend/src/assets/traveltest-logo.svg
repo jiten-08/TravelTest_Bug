@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">TravelTest airplane logo</title>
+  <defs>
+    <linearGradient id="circle" x1="74" y1="56" x2="430" y2="461" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6EA2FF"/>
+      <stop offset="1" stop-color="#4A73D9"/>
+    </linearGradient>
+    <linearGradient id="plane" x1="146" y1="316" x2="383" y2="83" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F4FFFF"/>
+      <stop offset="1" stop-color="#D9EEF0"/>
+    </linearGradient>
+  </defs>
+  <circle cx="256" cy="256" r="256" fill="url(#circle)"/>
+  <path d="M507 209c-53-55-82-87-88-93-17-16-46-14-80 17l-35 39-172-39-28 29 133 75-79 85-51-11-19 21 61 43 31 49 21-19-10-51 86-79 74 133 30-29-38-172 39-35c31-34 33-63 17-80l108 107Z" fill="#3D67C7" opacity=".38"/>
+  <path d="m104 156 30-30 174 30 38-44c38-43 72-54 93-33s10 55-33 93l-44 38 30 174-30 30-78-142-92 82 9 50-20 20-34-50-59-42 20-21 54 12 80-93-138-74Z" fill="url(#plane)"/>
+  <path d="m346 112-198 262 34 50 20-20-9-50 213-182c43-38 54-72 33-93-21-21-55-10-93 33Z" fill="#F5FFFF" opacity=".6"/>
+</svg>

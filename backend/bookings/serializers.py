@@ -5,6 +5,7 @@ from .models import Booking
 class BookingSerializer(serializers.ModelSerializer):
     flight_detail = serializers.SerializerMethodField()
     hotel_detail = serializers.SerializerMethodField()
+    selected_room_type_label = serializers.SerializerMethodField()
 
     class Meta:
         model = Booking
@@ -18,6 +19,7 @@ class BookingSerializer(serializers.ModelSerializer):
             'hotel',
             'hotel_detail',
             'selected_room_type',
+            'selected_room_type_label',
             'search_details',
             'amount_paid',
             'currency',
@@ -50,6 +52,15 @@ class BookingSerializer(serializers.ModelSerializer):
                 'id': obj.hotel.id,
                 'name': obj.hotel.name,
                 'city': obj.hotel.city,
+                'address': obj.hotel.address,
+                'amenities': obj.hotel.amenities,
                 'price_per_night': float(obj.hotel.price_per_night),
             }
         return None
+
+    def get_selected_room_type_label(self, obj):
+        if not obj.hotel or not obj.selected_room_type:
+            return None
+
+        room_type = obj.hotel.room_types.filter(code=obj.selected_room_type).first()
+        return room_type.label if room_type else obj.selected_room_type

@@ -232,15 +232,6 @@ function UserProfilePage() {
             </Button>
           </form>
 
-          <section className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm" data-testid="change-password-section">
-            <h2 className="font-heading text-2xl font-bold text-slate-950">Change password</h2>
-            <p className="mt-2 text-sm text-slate-600">Password change is a UI placeholder until backend authentication is connected.</p>
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <input className="travel-field" type="password" placeholder="Current password" data-testid="profile-current-password-input" />
-              <input className="travel-field" type="password" placeholder="New password" data-testid="profile-new-password-input" />
-            </div>
-          </section>
-
           <section className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm" data-testid="recent-bookings-summary">
             <div className="flex items-center justify-between gap-4">
               <h2 className="font-heading text-2xl font-bold text-slate-950">Recent bookings</h2>

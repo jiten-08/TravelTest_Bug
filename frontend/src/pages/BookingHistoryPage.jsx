@@ -87,7 +87,9 @@ function normalizeLocalBooking(booking) {
     paymentMethod: booking.paymentMethod || 'sample',
     item,
     searchDetails: booking.searchDetails || {},
+    travelerDetails: booking.travelerDetails || booking.searchDetails?.travelerDetails || [],
     selectedRoomTypeId: booking.selectedRoomTypeId || null,
+    selectedRoomType: booking.selectedRoomType || booking.selectedRoomTypeId || null,
     source: 'local',
   };
 }
@@ -136,6 +138,27 @@ function getSelectedSeatNumbers(booking) {
   const seatSummary = booking.seatSummary || booking.searchDetails?.seatSummary || {};
   const seatNumbers = selectedSeats.map((seat) => (typeof seat === 'string' ? seat : seat.seatNumber)).filter(Boolean);
   return [...new Set([...seatNumbers, ...(seatSummary.selectedSeatNumbers || [])])];
+}
+
+function getTravelerDetails(booking) {
+  return booking.travelerDetails || booking.searchDetails?.travelerDetails || [];
+}
+
+function calculateNights(searchDetails) {
+  if (!searchDetails?.checkInDate || !searchDetails?.checkOutDate) {
+    return 1;
+  }
+
+  const checkIn = new Date(searchDetails.checkInDate);
+  const checkOut = new Date(searchDetails.checkOutDate);
+  const diff = Math.round((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+  return diff > 0 ? diff : 1;
+}
+
+function getHotelStaySummary(booking) {
+  const nights = calculateNights(booking.searchDetails);
+  const rooms = Number(booking.searchDetails?.rooms || 1);
+  return `${nights} night${nights === 1 ? '' : 's'} | ${rooms} room${rooms === 1 ? '' : 's'}`;
 }
 
 function BookingHistoryPage() {
@@ -467,7 +490,7 @@ function BookingHistoryPage() {
                             className="rounded-xl bg-primary-600 px-3 py-2 text-xs font-bold text-white focus-ring"
                             data-testid={`view-booking-details-button-${booking.id}`}
                           >
-                            View Ticket
+                            {booking.bookingType === 'hotel' ? 'View Booking' : 'View Ticket'}
                           </button>
                           <button
                             type="button"
@@ -520,7 +543,7 @@ function BookingHistoryPage() {
                       className="flex-1"
                       data-testid={`view-booking-details-button-card-${booking.id}`}
                     >
-                      View Ticket
+                      {booking.bookingType === 'hotel' ? 'View Booking' : 'View Ticket'}
                     </Button>
                     <button
                       type="button"
@@ -553,7 +576,7 @@ function BookingHistoryPage() {
             <div className="relative h-64">
               <img
                 src={images.bookingSuccessImage}
-                alt="Travel ticket"
+                alt={selectedBooking.bookingType === 'hotel' ? 'Hotel booking details' : 'Travel ticket'}
                 loading="lazy"
                 className="h-full w-full rounded-t-3xl object-cover"
                 onError={(event) => {
@@ -570,8 +593,12 @@ function BookingHistoryPage() {
                 Close
               </button>
               <div className="absolute bottom-6 left-6 right-6 text-white sm:left-8 sm:right-8">
-                <p className="text-sm font-bold uppercase tracking-wide text-accent-300">Travel ticket</p>
-                <h2 className="mt-2 font-heading text-4xl font-bold">Your trip is ready.</h2>
+                <p className="text-sm font-bold uppercase tracking-wide text-accent-300">
+                  {selectedBooking.bookingType === 'hotel' ? 'Hotel booking' : 'Travel ticket'}
+                </p>
+                <h2 className="mt-2 font-heading text-4xl font-bold">
+                  {selectedBooking.bookingType === 'hotel' ? 'Your stay is ready.' : 'Your trip is ready.'}
+                </h2>
                 <p className="mt-3 inline-flex rounded-full bg-white/15 px-4 py-2 text-sm font-semibold backdrop-blur">
                   {selectedBooking.bookingStatus === 'cancelled' ? 'Booking cancelled' : 'Payment successful and booking confirmed.'}
                 </p>
@@ -647,6 +674,9 @@ function BookingHistoryPage() {
                           {selectedBooking.searchDetails?.checkInDate || 'Check-in not available'} to {selectedBooking.searchDetails?.checkOutDate || 'Check-out not available'}
                         </span>
                       </p>
+                      <p className="text-sm text-slate-600">
+                        Stay duration <span className="block font-semibold text-slate-950">{getHotelStaySummary(selectedBooking)}</span>
+                      </p>
                       <p className="text-sm text-slate-600 sm:col-span-2">
                         Address <span className="block font-semibold text-slate-950">{selectedBooking.item?.address || 'Address not available'}</span>
                       </p>
@@ -661,9 +691,32 @@ function BookingHistoryPage() {
                       Name <span className="block font-semibold text-slate-950">{selectedBooking.customerName || 'You'}</span>
                     </p>
                     <p className="text-sm text-slate-600">
-                      Travel date <span className="block font-semibold text-slate-950">{selectedBooking.travelDate || 'Not available'}</span>
+                      {selectedBooking.bookingType === 'hotel' ? 'Check-in date' : 'Travel date'}{' '}
+                      <span className="block font-semibold text-slate-950">{selectedBooking.travelDate || 'Not available'}</span>
                     </p>
                   </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-100 p-5" data-testid="ticket-traveler-details">
+                  <h3 className="font-heading text-xl font-bold text-slate-900">
+                    {selectedBooking.bookingType === 'hotel' ? 'Tourist details' : 'Passenger details'}
+                  </h3>
+                  {getTravelerDetails(selectedBooking).length > 0 ? (
+                    <div className="mt-4 grid gap-3">
+                      {getTravelerDetails(selectedBooking).map((traveler, index) => (
+                        <div key={`${traveler.fullName}-${index}`} className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+                          <p className="font-bold text-slate-950">
+                            {selectedBooking.bookingType === 'hotel' ? 'Tourist' : 'Passenger'} {index + 1}: {traveler.fullName}
+                          </p>
+                          <p className="mt-1">
+                            Age {traveler.age} | {traveler.gender} | {traveler.phone}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-sm text-slate-600">Traveller details are not available.</p>
+                  )}
                 </div>
               </div>
 
@@ -759,11 +812,41 @@ function BookingHistoryPage() {
                 </p>
               </div>
               <div className="rounded-2xl bg-slate-50 p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Travel date</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  {receiptBooking.bookingType === 'hotel' ? 'Check-in date' : 'Travel date'}
+                </p>
                 <p className="mt-1 font-bold text-slate-950" data-testid="receipt-travel-date">
                   {receiptBooking.travelDate || 'Not available'}
                 </p>
               </div>
+              {receiptBooking.bookingType === 'hotel' ? (
+                <div className="rounded-2xl bg-slate-50 p-4 sm:col-span-2">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Stay duration</p>
+                  <p className="mt-1 font-bold text-slate-950" data-testid="receipt-stay-duration">
+                    {getHotelStaySummary(receiptBooking)}
+                  </p>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-slate-100 p-4" data-testid="receipt-traveler-details">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                {receiptBooking.bookingType === 'hotel' ? 'Tourist details' : 'Passenger details'}
+              </p>
+              {getTravelerDetails(receiptBooking).length > 0 ? (
+                <div className="mt-3 grid gap-2">
+                  {getTravelerDetails(receiptBooking).map((traveler, index) => (
+                    <div key={`${traveler.fullName}-${index}`} className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+                      <span className="font-bold text-slate-950">
+                        {index + 1}. {traveler.fullName}
+                      </span>{' '}
+                      | Age {traveler.age} | {traveler.gender} | {traveler.phone}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-slate-600">Traveller details are not available.</p>
+              )}
             </div>
 
             <div className="mt-6 rounded-2xl border border-slate-100 p-4">

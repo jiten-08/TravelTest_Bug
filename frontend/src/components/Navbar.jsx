@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import traveltestLogo from '../assets/traveltest-logo.svg';
 
 const navItems = [
   { label: 'Home', path: '/', testId: 'nav-home-link' },
@@ -27,6 +28,7 @@ function Navbar() {
   const logout = () => {
     localStorage.removeItem('traveltest_user_session');
     localStorage.removeItem('traveltest_access_token');
+    localStorage.removeItem('traveltest_refresh_token');
     setSession(null);
     navigate('/');
   };
@@ -42,8 +44,8 @@ function Navbar() {
       <nav className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-4">
           <NavLink to="/" className="flex items-center gap-3 focus-ring" data-testid="navbar-brand-link">
-          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-600 to-indigo-600 text-lg font-bold text-white shadow-lg shadow-blue-900/20">
-            TT
+          <span className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full shadow-lg shadow-blue-900/20">
+            <img src={traveltestLogo} alt="TravelTest logo" className="h-full w-full object-cover" />
           </span>
           <span>
             <span className="block text-lg font-bold tracking-tight text-slate-950">TravelTest</span>

@@ -19,9 +19,26 @@ function formatDateTime(value) {
   }).format(new Date(value));
 }
 
+function getTravelerDetails(booking) {
+  return booking?.travelerDetails || booking?.searchDetails?.travelerDetails || [];
+}
+
+function calculateNights(searchDetails) {
+  if (!searchDetails?.checkInDate || !searchDetails?.checkOutDate) {
+    return 1;
+  }
+
+  const checkIn = new Date(searchDetails.checkInDate);
+  const checkOut = new Date(searchDetails.checkOutDate);
+  const diff = Math.round((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+  return diff > 0 ? diff : 1;
+}
+
 function BookingConfirmationPage() {
   const booking = getStoredBooking();
   const item = booking?.item;
+  const travelerDetails = getTravelerDetails(booking);
+  const hotelNights = calculateNights(booking?.searchDetails);
 
   return (
     <section className="bg-slate-50 px-4 py-12 sm:px-6 lg:px-8" data-testid="booking-confirmation-page">
@@ -110,6 +127,22 @@ function BookingConfirmationPage() {
                           Room type <span className="block font-semibold text-slate-950">{booking.selectedRoomType}</span>
                         </p>
                       ) : null}
+                      <p className="text-sm text-slate-600">
+                        Stay duration{' '}
+                        <span className="block font-semibold text-slate-950">
+                          {hotelNights} night{hotelNights === 1 ? '' : 's'}
+                        </span>
+                      </p>
+                      <p className="text-sm text-slate-600">
+                        Rooms <span className="block font-semibold text-slate-950">{booking.searchDetails?.rooms || 1}</span>
+                      </p>
+                      <p className="text-sm text-slate-600 sm:col-span-2">
+                        Dates{' '}
+                        <span className="block font-semibold text-slate-950">
+                          {booking.searchDetails?.checkInDate || 'Check-in not available'} to{' '}
+                          {booking.searchDetails?.checkOutDate || 'Check-out not available'}
+                        </span>
+                      </p>
                       <p className="text-sm text-slate-600 sm:col-span-2">
                         Address <span className="block font-semibold text-slate-950">{item.address}</span>
                       </p>
@@ -130,6 +163,28 @@ function BookingConfirmationPage() {
                     </div>
                   ) : (
                     <p className="mt-3 text-sm text-slate-600">Guest customer details are not available.</p>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-slate-100 p-5" data-testid="confirmation-traveler-details">
+                  <h2 className="font-heading text-xl font-bold text-slate-900">
+                    {booking.bookingType === 'hotel' ? 'Tourist details' : 'Passenger details'}
+                  </h2>
+                  {travelerDetails.length > 0 ? (
+                    <div className="mt-4 grid gap-3">
+                      {travelerDetails.map((traveler, index) => (
+                        <div key={`${traveler.fullName}-${index}`} className="rounded-2xl bg-slate-50 p-4">
+                          <p className="font-bold text-slate-950">
+                            {booking.bookingType === 'hotel' ? 'Tourist' : 'Passenger'} {index + 1}: {traveler.fullName}
+                          </p>
+                          <p className="mt-1 text-sm text-slate-600">
+                            Age {traveler.age} | {traveler.gender} | {traveler.phone}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-sm text-slate-600">Traveller details are not available.</p>
                   )}
                 </div>
               </div>

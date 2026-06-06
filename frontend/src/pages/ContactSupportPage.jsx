@@ -103,7 +103,6 @@ function ContactSupportPage() {
           {[
             ['Email support', 'support@traveltest.local'],
             ['Phone support', '+91 98765 43210'],
-            ['Live chat', 'Coming soon'],
           ].map(([title, value]) => (
             <Card key={title} className="p-5">
               <h2 className="font-heading text-lg font-bold text-slate-950">{title}</h2>

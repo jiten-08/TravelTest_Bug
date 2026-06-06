@@ -35,6 +35,8 @@ function LoginPage() {
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [noticeMessage, setNoticeMessage] = useState(location.state?.message || '');
+  const sessionExpired = new window.URLSearchParams(location.search).get('session') === 'expired';
 
   const updateField = (event) => {
     const { name, type, checked, value } = event.target;
@@ -44,6 +46,7 @@ function LoginPage() {
     }));
     setErrors((current) => ({ ...current, [name]: '' }));
     setAuthError('');
+    setNoticeMessage('');
   };
 
   const handleSubmit = async (event) => {
@@ -76,7 +79,8 @@ function LoginPage() {
       localStorage.setItem('traveltest_access_token', access);
       localStorage.setItem('traveltest_refresh_token', refresh);
       
-      const from = location.state?.from || '/';
+      const queryFrom = new window.URLSearchParams(location.search).get('from');
+      const from = location.state?.from || queryFrom || '/';
       navigate(from, { replace: true });
     } catch (error) {
       setAuthError(error.response?.data?.detail || 'Invalid email or password.');
@@ -182,6 +186,12 @@ function LoginPage() {
           {authError ? (
             <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700" data-testid="login-invalid-credentials-message">
               {authError}
+            </p>
+          ) : null}
+
+          {noticeMessage || sessionExpired ? (
+            <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700" data-testid="login-session-message">
+              {noticeMessage || 'Your session expired. Please login again.'}
             </p>
           ) : null}
 
