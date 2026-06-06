@@ -92,7 +92,7 @@ function LoginPage() {
             Welcome back
           </p>
           <h1 className="mt-2 text-3xl font-bold text-slate-950" data-testid="login-title">
-            Login to TravelTestt
+            Login to TravelTest
           </h1>
         </div>
 
