@@ -15,18 +15,30 @@ class HotelViewSet(viewsets.ModelViewSet):
     ordering_fields = ['name', 'price_per_night', 'created_at']
     ordering = ['-created_at']
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['check_in_date'] = (
+            self.request.query_params.get('check_in_date') or
+            self.request.query_params.get('checkInDate')
+        )
+        context['check_out_date'] = (
+            self.request.query_params.get('check_out_date') or
+            self.request.query_params.get('checkOutDate')
+        )
+        return context
+
     @action(detail=True, methods=['get'])
     def room_types(self, request, pk=None):
         hotel = self.get_object()
         room_types = hotel.room_types.all()
-        serializer = HotelRoomTypeSerializer(room_types, many=True)
+        serializer = HotelRoomTypeSerializer(room_types, many=True, context=self.get_serializer_context())
         return Response(serializer.data)
 
     @action(detail=True, methods=['get'])
     def inventory(self, request, pk=None):
         hotel = self.get_object()
         inventories = hotel.inventories.all()
-        serializer = HotelInventorySerializer(inventories, many=True)
+        serializer = HotelInventorySerializer(inventories, many=True, context=self.get_serializer_context())
         return Response(serializer.data)
 
 

@@ -144,7 +144,7 @@ function FlightResultsPage() {
     setPreviewBookedSeatNumbers([]);
     setPreviewSeatError('');
 
-    bookingsApi.bookedSeats(flight.id)
+    bookingsApi.bookedSeats(flight.id, searchDetails?.departureDate)
       .then((seatNumbers) => setPreviewBookedSeatNumbers(seatNumbers))
       .catch((error) => {
         setPreviewBookedSeatNumbers([]);

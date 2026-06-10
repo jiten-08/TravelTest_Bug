@@ -10,7 +10,7 @@ from .models import Booking
 from flights.models import Flight
 from hotels.models import Hotel
 from .serializers import BookingSerializer
-from hotels.models import HotelInventory
+from hotels.availability import get_available_room_count, get_stay_dates
 
 
 def get_booking_seat_numbers(booking):
@@ -27,6 +27,18 @@ def get_booking_seat_numbers(booking):
 
     seat_numbers.extend(seat_summary.get('selectedSeatNumbers') or [])
     return sorted({seat for seat in seat_numbers if seat})
+
+
+def get_search_departure_date(search_details):
+    details = search_details or {}
+    return details.get('departureDate') or details.get('departure_date') or details.get('travelDate') or details.get('travel_date')
+
+
+def filter_bookings_by_departure_date(bookings, departure_date):
+    if not departure_date:
+        return bookings
+
+    return [booking for booking in bookings if get_search_departure_date(booking.search_details) == departure_date]
 
 
 def resolve_model_id(model, value, label):
@@ -97,6 +109,7 @@ class BookingViewSet(viewsets.ModelViewSet):
 
                 if booking_type == 'flight':
                     requested_seats = set()
+                    requested_departure_date = get_search_departure_date(search_details)
 
                     for seat in search_details.get('selectedSeats') or []:
                         if isinstance(seat, dict) and seat.get('seatNumber'):
@@ -112,6 +125,7 @@ class BookingViewSet(viewsets.ModelViewSet):
                             flight_id=flight_id,
                             booking_status__in=['confirmed', 'pending'],
                         )
+                        existing_bookings = filter_bookings_by_departure_date(existing_bookings, requested_departure_date)
                         booked_seats = set()
                         for existing_booking in existing_bookings:
                             booked_seats.update(get_booking_seat_numbers(existing_booking))
@@ -123,6 +137,20 @@ class BookingViewSet(viewsets.ModelViewSet):
                                 status=status.HTTP_400_BAD_REQUEST,
                             )
 
+                selected_room_type = request.data.get('selected_room_type')
+                if booking_type == 'hotel' and hotel_id and selected_room_type:
+                    hotel = Hotel.objects.prefetch_related('room_types', 'inventories').get(id=hotel_id)
+                    room_type = hotel.room_types.filter(code=selected_room_type).first()
+                    if room_type:
+                        rooms_requested = get_requested_room_count(search_details)
+                        check_in, check_out = get_stay_dates(search_details)
+                        available_rooms = get_available_room_count(hotel, room_type, check_in, check_out)
+                        if available_rooms < rooms_requested:
+                            return Response(
+                                {'error': f"Only {available_rooms} {room_type.label} room(s) available for the selected dates"},
+                                status=status.HTTP_400_BAD_REQUEST,
+                            )
+
                 # Create booking
                 booking = Booking.objects.create(
                     booking_id=booking_id,
@@ -130,7 +158,7 @@ class BookingViewSet(viewsets.ModelViewSet):
                     booking_type=booking_type,
                     flight_id=flight_id,
                     hotel_id=hotel_id,
-                    selected_room_type=request.data.get('selected_room_type'),
+                    selected_room_type=selected_room_type,
                     search_details=search_details,
                     amount_paid=request.data.get('amount_paid', 0),
                     currency=request.data.get('currency', 'INR'),
@@ -138,24 +166,6 @@ class BookingViewSet(viewsets.ModelViewSet):
                     payment_status=request.data.get('payment_status', 'success'),
                     booking_status='confirmed',
                 )
-
-                # Decrement hotel inventory if applicable
-                if booking_type == 'hotel' and booking.hotel and booking.selected_room_type:
-                    room_type_code = booking.selected_room_type
-                    room_type = booking.hotel.room_types.filter(code=room_type_code).first()
-                    if room_type:
-                        rooms_requested = get_requested_room_count(search_details)
-                        inventory = HotelInventory.objects.select_for_update().get(
-                            hotel=booking.hotel,
-                            room_type=room_type
-                        )
-                        if inventory.available >= rooms_requested:
-                            inventory.available -= rooms_requested
-                            inventory.save()
-                        else:
-                            raise Exception(
-                                f"Only {inventory.available} {room_type.label} room(s) available"
-                            )
 
                 serializer = self.get_serializer(booking)
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -172,6 +182,13 @@ class BookingViewSet(viewsets.ModelViewSet):
         if not flight:
             return Response({'error': 'flight query parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
 
+        departure_date = (
+            request.query_params.get('departure_date') or
+            request.query_params.get('departureDate') or
+            request.query_params.get('travel_date') or
+            request.query_params.get('travelDate')
+        )
+
         try:
             flight_id = resolve_model_id(Flight, flight, 'Flight')
         except ValueError as error:
@@ -182,12 +199,13 @@ class BookingViewSet(viewsets.ModelViewSet):
             flight_id=flight_id,
             booking_status__in=['confirmed', 'pending'],
         )
+        bookings = filter_bookings_by_departure_date(bookings, departure_date)
         seat_numbers = set()
 
         for booking in bookings:
             seat_numbers.update(get_booking_seat_numbers(booking))
 
-        return Response({'flight': flight_id, 'seat_numbers': sorted(seat_numbers)})
+        return Response({'flight': flight_id, 'departure_date': departure_date, 'seat_numbers': sorted(seat_numbers)})
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def cancel(self, request, pk=None):
@@ -212,18 +230,6 @@ class BookingViewSet(viewsets.ModelViewSet):
 
         try:
             with transaction.atomic():
-                # Restore hotel inventory
-                if booking.booking_type == 'hotel' and booking.hotel and booking.selected_room_type:
-                    room_type = booking.hotel.room_types.filter(code=booking.selected_room_type).first()
-                    if room_type:
-                        rooms_to_restore = get_requested_room_count(booking.search_details)
-                        inventory = HotelInventory.objects.select_for_update().get(
-                            hotel=booking.hotel,
-                            room_type=room_type
-                        )
-                        inventory.available += rooms_to_restore
-                        inventory.save()
-
                 # Update booking status
                 booking.booking_status = 'cancelled'
                 booking.save()

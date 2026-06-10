@@ -65,7 +65,15 @@ function HotelResultsPage() {
     setIsLoading(true);
     setApiError('');
 
-    hotelsApi.search(searchDetails?.city ? { city: searchDetails.city } : {})
+    hotelsApi.search(
+      searchDetails
+        ? {
+            city: searchDetails.city,
+            check_in_date: searchDetails.checkInDate,
+            check_out_date: searchDetails.checkOutDate,
+          }
+        : {},
+    )
       .then((apiHotels) => {
         if (isMounted) {
           setAvailableHotels(apiHotels);

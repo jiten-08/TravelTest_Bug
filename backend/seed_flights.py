@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 import django
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
@@ -8,7 +9,7 @@ django.setup()
 from flights.models import Flight
 
 def seed_flights():
-    flights_json_path = os.path.join('..', 'frontend', 'src', 'data', 'flights.json')
+    flights_json_path = Path(__file__).resolve().parents[1] / 'frontend' / 'src' / 'data' / 'flights.json'
     if not os.path.exists(flights_json_path):
         print(f"Path not found: {flights_json_path}")
         return

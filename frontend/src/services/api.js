@@ -287,8 +287,14 @@ export const bookingsApi = {
     const response = await api.post(`/bookings/${bookingId}/cancel/`);
     return normalizeBooking(response.data);
   },
-  bookedSeats: async (flightId) => {
-    const response = await api.get('/bookings/booked_seats/', { params: { flight: flightId } });
+  bookedSeats: async (flightId, departureDate) => {
+    const params = { flight: flightId };
+
+    if (departureDate) {
+      params.departure_date = departureDate;
+    }
+
+    const response = await api.get('/bookings/booked_seats/', { params });
     return response.data?.seat_numbers || [];
   },
 };

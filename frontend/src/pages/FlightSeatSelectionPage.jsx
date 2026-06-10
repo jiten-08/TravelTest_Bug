@@ -35,7 +35,7 @@ function FlightSeatSelectionPage() {
     let isMounted = true;
     setSeatLoadError('');
 
-    bookingsApi.bookedSeats(selectedFlight.id)
+    bookingsApi.bookedSeats(selectedFlight.id, searchDetails?.departureDate)
       .then((seatNumbers) => {
         if (isMounted) {
           setBookedSeatNumbers(seatNumbers);
@@ -51,7 +51,7 @@ function FlightSeatSelectionPage() {
     return () => {
       isMounted = false;
     };
-  }, [selectedFlight?.id, userSession]);
+  }, [selectedFlight?.id, searchDetails?.departureDate, userSession]);
 
   const seats = useMemo(() => {
     const booked = new Set(bookedSeatNumbers);
