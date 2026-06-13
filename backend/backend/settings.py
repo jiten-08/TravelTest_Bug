@@ -8,7 +8,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get('DJANGO_SECRET', 'traveltest-secret')
 
-DEBUG = True
+debug_value = os.environ.get('DEBUG', '').lower()
+if debug_value in {'true', '1', 'yes'}:
+    DEBUG = True
+elif debug_value in {'false', '0', 'no'}:
+    DEBUG = False
+else:
+    DEBUG = os.environ.get('RENDER', '').lower() != 'true'
 
 ALLOWED_HOSTS = ['*']
 
@@ -108,8 +114,6 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = '/static/'
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
@@ -136,12 +140,16 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-STATIC_URL = 'static/'
-
+STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
-
-DEBUG = os.environ.get("DEBUG", "False") == "True"
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

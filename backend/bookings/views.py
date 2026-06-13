@@ -36,7 +36,7 @@ def get_search_departure_date(search_details):
 
 def filter_bookings_by_departure_date(bookings, departure_date):
     if not departure_date:
-        return bookings
+        return []
 
     return [booking for booking in bookings if get_search_departure_date(booking.search_details) == departure_date]
 
@@ -110,6 +110,11 @@ class BookingViewSet(viewsets.ModelViewSet):
                 if booking_type == 'flight':
                     requested_seats = set()
                     requested_departure_date = get_search_departure_date(search_details)
+                    if not requested_departure_date:
+                        return Response(
+                            {'error': 'Departure date is required for flight seat booking.'},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
 
                     for seat in search_details.get('selectedSeats') or []:
                         if isinstance(seat, dict) and seat.get('seatNumber'):
@@ -144,6 +149,11 @@ class BookingViewSet(viewsets.ModelViewSet):
                     if room_type:
                         rooms_requested = get_requested_room_count(search_details)
                         check_in, check_out = get_stay_dates(search_details)
+                        if not check_in or not check_out:
+                            return Response(
+                                {'error': 'Check-in and check-out dates are required for hotel booking.'},
+                                status=status.HTTP_400_BAD_REQUEST,
+                            )
                         available_rooms = get_available_room_count(hotel, room_type, check_in, check_out)
                         if available_rooms < rooms_requested:
                             return Response(
@@ -188,6 +198,11 @@ class BookingViewSet(viewsets.ModelViewSet):
             request.query_params.get('travel_date') or
             request.query_params.get('travelDate')
         )
+        if not departure_date:
+            return Response(
+                {'error': 'departure_date query parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             flight_id = resolve_model_id(Flight, flight, 'Flight')

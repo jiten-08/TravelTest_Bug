@@ -70,36 +70,6 @@ const defaultHotelRoomOptions = [
   },
 ];
 
-function getHotelInventory(hotelId) {
-  const storageKey = 'traveltest_hotel_inventory';
-  const storedInventory = getStoredJson(storageKey) || {};
-  if (!hotelId) {
-    return {};
-  }
-
-  const defaultInventory = defaultHotelRoomOptions.reduce(
-    (inventory, room) => ({ ...inventory, [room.id]: room.defaultAvailable }),
-    {},
-  );
-
-  if (!storedInventory[hotelId]) {
-    storedInventory[hotelId] = defaultInventory;
-    localStorage.setItem(storageKey, JSON.stringify(storedInventory));
-  }
-
-  return storedInventory[hotelId];
-}
-
-function decrementHotelInventory(hotelId, roomTypeId, quantity = 1) {
-  const storageKey = 'traveltest_hotel_inventory';
-  const storedInventory = getStoredJson(storageKey) || {};
-  const hotelInventory = storedInventory[hotelId] || getHotelInventory(hotelId);
-  hotelInventory[roomTypeId] = Math.max(0, (hotelInventory[roomTypeId] || 0) - quantity);
-  storedInventory[hotelId] = hotelInventory;
-  localStorage.setItem(storageKey, JSON.stringify(storedInventory));
-  return hotelInventory;
-}
-
 function validateCard(form) {
   const errors = {};
   const digits = form.cardNumber.replace(/\s/g, '');
@@ -176,7 +146,6 @@ function PaymentPlaceholderPage() {
     }
 
     const hasBackendRoomTypes = Boolean(bookingItem.roomTypes?.length);
-    const hotelInventory = hasBackendRoomTypes ? {} : getHotelInventory(bookingItem.id);
     const basePrice = bookingItem.pricePerNight || 0;
 
     const backendRoomTypes = hasBackendRoomTypes
@@ -192,7 +161,7 @@ function PaymentPlaceholderPage() {
 
     return backendRoomTypes.map((room) => ({
       ...room,
-      available: hasBackendRoomTypes ? room.available : hotelInventory[room.id] ?? room.defaultAvailable,
+      available: hasBackendRoomTypes ? room.available : room.defaultAvailable,
       price: basePrice + room.priceOffset,
     }));
   }, [bookingItem, bookingType]);
@@ -466,10 +435,6 @@ function formatPromoMessage(promo, discountAmount) {
         /invalid pk|incorrect type|does not exist|required/i.test(errorMessage);
 
       if (canUseLocalFallback) {
-        if (bookingType === 'hotel' && selectedRoomType) {
-          decrementHotelInventory(bookingItem.id, selectedRoomTypeId, Number(searchDetails?.rooms || 1));
-        }
-
         const existingBookings = getStoredJson('traveltest_booking_history') || [];
         localStorage.setItem('traveltest_current_booking', JSON.stringify(localBooking));
         localStorage.setItem('traveltest_booking_history', JSON.stringify([localBooking, ...existingBookings]));

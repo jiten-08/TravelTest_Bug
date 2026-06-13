@@ -72,6 +72,18 @@ class FlightSeatDateTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['seat_numbers'], ['2B'])
 
+    def test_flight_booking_requires_departure_date(self):
+        response = self.create_booking('', '1A')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('Departure date is required', response.data['error'])
+
+    def test_booked_seats_endpoint_requires_departure_date(self):
+        response = self.client.get('/api/bookings/booked_seats/', {'flight': self.flight.id})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('departure_date', response.data['error'])
+
 
 class HotelRoomDateTests(APITestCase):
     def setUp(self):
@@ -152,3 +164,9 @@ class HotelRoomDateTests(APITestCase):
         open_date_hotel = open_date_response.data['results'][0]
         self.assertEqual(booked_date_hotel['rooms_available'], 0)
         self.assertEqual(open_date_hotel['rooms_available'], 1)
+
+    def test_hotel_booking_requires_stay_dates(self):
+        response = self.create_booking('', '')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('Check-in and check-out dates are required', response.data['error'])

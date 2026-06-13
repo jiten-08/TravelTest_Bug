@@ -41,16 +41,6 @@ function applyCurrentCustomerName(booking) {
   };
 }
 
-function updateHotelInventory(hotelId, roomTypeId, quantityChange) {
-  const storageKey = 'traveltest_hotel_inventory';
-  const storedInventory = getStoredJson(storageKey) || {};
-  const hotelInventory = storedInventory[hotelId] || {};
-  hotelInventory[roomTypeId] = Math.max(0, (hotelInventory[roomTypeId] || 0) + quantityChange);
-  storedInventory[hotelId] = hotelInventory;
-  localStorage.setItem(storageKey, JSON.stringify(storedInventory));
-  return hotelInventory;
-}
-
 function formatDate(value) {
   if (!value) {
     return 'Not available';
@@ -258,7 +248,7 @@ function BookingHistoryPage() {
     if (receiptBooking?.id === bookingId) {
       setReceiptBooking(updatedBooking);
     }
-    setSuccessMessage('Booking cancelled successfully. Any released hotel room inventory has been restored.');
+    setSuccessMessage('Booking cancelled successfully.');
 
     if (bookingToCancel.source !== 'api') {
       const localBookings = readLocalBookings();
@@ -267,14 +257,6 @@ function BookingHistoryPage() {
         booking.id === bookingId ? { ...booking, bookingStatus: 'cancelled' } : booking,
       );
       saveLocalBookings(updatedPersisted);
-    }
-
-    if (bookingToCancel.source !== 'api' && bookingToCancel.bookingType === 'hotel' && bookingToCancel.selectedRoomTypeId) {
-      updateHotelInventory(
-        bookingToCancel.item.id,
-        bookingToCancel.selectedRoomTypeId,
-        Number(bookingToCancel.searchDetails?.rooms || 1),
-      );
     }
 
     setCancellingBookingId('');

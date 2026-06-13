@@ -144,17 +144,15 @@ function FlightSearchPage() {
               <label className="block text-sm font-bold text-slate-700" htmlFor="flight-source-dropdown">
                 Source city
               </label>
-              <div className="mt-2 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition-all hover:border-primary-100">
-                <span className="text-xs font-bold uppercase tracking-wide text-slate-400">From</span>
-                  <FancySelect
-                    id="flight-source-dropdown"
-                    name="source"
-                    value={form.source}
-                    onChange={updateField}
-                    options={[{ value: '', label: 'Select source' }, ...cities.map((c) => ({ value: c, label: c }))]}
-                    data-testid="flight-source-dropdown"
-                  />
-              </div>
+              <FancySelect
+                id="flight-source-dropdown"
+                name="source"
+                value={form.source}
+                onChange={updateField}
+                className="mt-2"
+                options={[{ value: '', label: 'Select source' }, ...cities.map((c) => ({ value: c, label: c }))]}
+                data-testid="flight-source-dropdown"
+              />
               {errors.source ? (
                 <p className="mt-2 text-sm font-semibold text-red-600" data-testid="flight-source-validation-message">
                   {errors.source}
@@ -178,17 +176,15 @@ function FlightSearchPage() {
               <label className="block text-sm font-bold text-slate-700" htmlFor="flight-destination-dropdown">
                 Destination city
               </label>
-              <div className="mt-2 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition-all hover:border-primary-100">
-                <span className="text-xs font-bold uppercase tracking-wide text-slate-400">To</span>
-                  <FancySelect
-                    id="flight-destination-dropdown"
-                    name="destination"
-                    value={form.destination}
-                    onChange={updateField}
-                    options={[{ value: '', label: 'Select destination' }, ...cities.map((c) => ({ value: c, label: c }))]}
-                    data-testid="flight-destination-dropdown"
-                  />
-              </div>
+              <FancySelect
+                id="flight-destination-dropdown"
+                name="destination"
+                value={form.destination}
+                onChange={updateField}
+                className="mt-2"
+                options={[{ value: '', label: 'Select destination' }, ...cities.map((c) => ({ value: c, label: c }))]}
+                data-testid="flight-destination-dropdown"
+              />
               {errors.destination ? (
                 <p className="mt-2 text-sm font-semibold text-red-600" data-testid="flight-destination-validation-message">
                   {errors.destination}
@@ -226,6 +222,7 @@ function FlightSearchPage() {
                 name="passengers"
                 value={form.passengers}
                 onChange={updateField}
+                className="mt-2"
                 options={[{ value: '', label: 'Select passengers' }, ...[1, 2, 3, 4, 5, 6].map((count) => ({ value: String(count), label: `${count} ${count === 1 ? 'passenger' : 'passengers'}` }))]}
                 data-testid="flight-passenger-selector"
               />
@@ -245,6 +242,7 @@ function FlightSearchPage() {
                 name="travelClass"
                 value={form.travelClass}
                 onChange={updateField}
+                className="mt-2"
                 options={travelClasses.map((tc) => ({ value: tc, label: tc }))}
                 data-testid="flight-class-dropdown"
               />

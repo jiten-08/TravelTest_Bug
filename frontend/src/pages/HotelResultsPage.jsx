@@ -14,11 +14,6 @@ function getStoredSearch() {
   return savedSearch ? JSON.parse(savedSearch) : null;
 }
 
-function getHotelInventory() {
-  const savedInventory = localStorage.getItem('traveltest_hotel_inventory');
-  return savedInventory ? JSON.parse(savedInventory) : {};
-}
-
 function calculateNights(searchDetails) {
   if (!searchDetails?.checkInDate || !searchDetails?.checkOutDate) {
     return 1;
@@ -35,16 +30,7 @@ function getRequestedRooms(searchDetails) {
 }
 
 function getHotelAvailableRooms(hotel) {
-  if (hotel.inventories?.length || hotel.roomTypes?.length) {
-    return Number(hotel.roomsAvailable || 0);
-  }
-
-  const inventory = getHotelInventory();
-  const hotelInventory = inventory[hotel.id];
-  if (!hotelInventory) {
-    return Number(hotel.roomsAvailable || 0);
-  }
-  return Object.values(hotelInventory).reduce((sum, count) => sum + Number(count), 0);
+  return Number(hotel.roomsAvailable || 0);
 }
 
 function HotelResultsPage() {

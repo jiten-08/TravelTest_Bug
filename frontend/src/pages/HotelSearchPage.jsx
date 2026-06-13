@@ -158,13 +158,13 @@ function HotelSearchPage() {
                 data-testid="hotel-city-input"
               />
               {showSuggestions && suggestions.length > 0 ? (
-                <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-xl" data-testid="hotel-city-suggestions-list">
+                <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl bg-white shadow-xl" data-testid="hotel-city-suggestions-list">
                   {suggestions.map((city) => (
                     <button
                       key={city}
                       type="button"
                       onMouseDown={() => selectCity(city)}
-                      className="block w-full px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-primary-50"
+                      className="block w-full px-4 py-3 text-left text-sm font-semibold text-slate-900 transition-colors hover:bg-gradient-to-r hover:from-primary-600 hover:to-[#5a73ff] hover:text-white"
                       data-testid={`hotel-city-suggestion-option-${city.toLowerCase().replaceAll(' ', '-')}`}
                     >
                       {city}
