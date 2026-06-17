@@ -50,6 +50,40 @@ function formatTravelDate(value) {
   }).format(new Date(value));
 }
 
+function getSelectedTravelClass(searchDetails) {
+  return searchDetails?.travelClass && searchDetails.travelClass !== 'all' ? searchDetails.travelClass : '';
+}
+
+function getTravelClassLabel(searchDetails) {
+  return getSelectedTravelClass(searchDetails) || 'All classes';
+}
+
+function getRecommendedFlights(allFlights, searchDetails) {
+  if (!searchDetails) {
+    return allFlights;
+  }
+
+  const source = String(searchDetails.source || '').toLowerCase();
+  const destination = String(searchDetails.destination || '').toLowerCase();
+
+  return allFlights
+    .map((flight) => {
+      const sameSource = String(flight.source || '').toLowerCase() === source;
+      const sameDestination = String(flight.destination || '').toLowerCase() === destination;
+      const sameRoute = sameSource && sameDestination;
+      const routeScore = sameRoute ? 3 : Number(sameSource) + Number(sameDestination);
+
+      return {
+        ...flight,
+        recommendationScore: routeScore,
+        recommendationLabel: sameRoute ? 'Recommended route' : 'Suggested flight',
+      };
+    })
+    .filter((flight) => flight.recommendationScore > 0)
+    .sort((first, second) => second.recommendationScore - first.recommendationScore || first.price - second.price)
+    .slice(0, 8);
+}
+
 function FlightResultsPage() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
@@ -60,6 +94,7 @@ function FlightResultsPage() {
   const [previewBookedSeatNumbers, setPreviewBookedSeatNumbers] = useState([]);
   const [previewSeatError, setPreviewSeatError] = useState('');
   const [availableFlights, setAvailableFlights] = useState([]);
+  const [isRecommendedResults, setIsRecommendedResults] = useState(false);
   const [apiError, setApiError] = useState('');
   const passengerCount = Math.max(Number(searchDetails?.passengers || 1), 1);
 
@@ -67,32 +102,53 @@ function FlightResultsPage() {
     let isMounted = true;
     setIsLoading(true);
     setApiError('');
+    setIsRecommendedResults(false);
 
+    const selectedTravelClass = getSelectedTravelClass(searchDetails);
     const params = searchDetails
       ? {
           source: searchDetails.source,
           destination: searchDetails.destination,
-          travel_class: searchDetails.travelClass,
+          ...(selectedTravelClass ? { travel_class: selectedTravelClass } : {}),
         }
       : {};
 
     flightsApi.search(params)
-      .then((apiFlights) => {
+      .then(async (apiFlights) => {
+        if (apiFlights.length > 0 || !searchDetails) {
+          return { flights: apiFlights, recommended: false };
+        }
+
+        const allFlights = await flightsApi.search();
+        return {
+          flights: getRecommendedFlights(allFlights, searchDetails),
+          recommended: true,
+        };
+      })
+      .then(({ flights: nextFlights, recommended }) => {
         if (isMounted) {
-          setAvailableFlights(apiFlights);
+          setAvailableFlights(nextFlights);
+          setIsRecommendedResults(recommended);
         }
       })
       .catch((error) => {
         if (isMounted) {
-          const fallbackFlights = searchDetails
-            ? flights.filter(
-                (flight) =>
-                  flight.source === searchDetails.source &&
-                  flight.destination === searchDetails.destination &&
-                  flight.travelClass === searchDetails.travelClass,
-              )
+          const exactFallbackFlights = searchDetails
+            ? flights.filter((flight) => {
+                const matchesRoute = flight.source === searchDetails.source && flight.destination === searchDetails.destination;
+                const matchesClass = !selectedTravelClass || flight.travelClass === selectedTravelClass;
+                return matchesRoute && matchesClass;
+              })
             : flights;
-          setAvailableFlights(fallbackFlights);
+
+          if (exactFallbackFlights.length > 0 || !searchDetails) {
+            setAvailableFlights(exactFallbackFlights);
+            setIsRecommendedResults(false);
+          } else {
+            setAvailableFlights(getRecommendedFlights(flights, searchDetails));
+            setIsRecommendedResults(true);
+          }
+
           setApiError(getApiErrorMessage(error, 'Showing local sample flights because the backend is not available.'));
         }
       })
@@ -177,14 +233,14 @@ function FlightResultsPage() {
             <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div>
                 <p className="text-sm font-bold text-slate-500" data-testid="flight-results-eyebrow">
-                  All available flights
+                  {isRecommendedResults ? 'Recommended flights' : 'All available flights'}
                 </p>
                 <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl" data-testid="flight-results-title">
-                  {results.length || flights.length} matching flight{(results.length || flights.length) === 1 ? '' : 's'}
+                  {results.length} {isRecommendedResults ? 'recommended' : 'matching'} flight{results.length === 1 ? '' : 's'}
                 </h1>
                 {searchDetails ? (
                   <p className="mt-2 text-sm font-semibold text-slate-500" data-testid="flight-results-search-summary">
-                    {searchDetails.source} to {searchDetails.destination} | {searchDetails.travelClass} |{' '}
+                    {searchDetails.source} to {searchDetails.destination} | {getTravelClassLabel(searchDetails)} |{' '}
                     {searchDetails.passengers} passenger(s)
                   </p>
                 ) : null}
@@ -218,6 +274,11 @@ function FlightResultsPage() {
                 {apiError}
               </p>
             ) : null}
+            {isRecommendedResults ? (
+              <p className="mb-4 rounded-2xl border border-primary-100 bg-primary-50 px-4 py-3 text-sm font-semibold text-primary-700">
+                Showing recommended flights based on your selected source and destination.
+              </p>
+            ) : null}
 
             {isLoading ? (
               <div className="rounded-[1.75rem] bg-white p-4 shadow-sm" data-testid="flight-results-loading-skeleton">
@@ -230,8 +291,8 @@ function FlightResultsPage() {
               </div>
             ) : results.length === 0 ? (
               <EmptyState
-                title="No flights found"
-                description="Try another route, class, or airline filter to see available flights."
+                title="No recommended flights available"
+                description="Try another route or remove filters to see available flights."
                 testId="flight-results-empty-state"
               />
             ) : (
@@ -249,6 +310,9 @@ function FlightResultsPage() {
                             <div className="mb-4 flex flex-wrap gap-2">
                               <Badge className="bg-primary-50 text-primary-700">{flight.travelClass}</Badge>
                               <Badge className="bg-accent-50 text-accent-700">Direct</Badge>
+                              {isRecommendedResults ? (
+                                <Badge className="bg-indigo-50 text-indigo-700">{flight.recommendationLabel || 'Suggested'}</Badge>
+                              ) : null}
                               {index === 0 ? <Badge className="bg-slate-100 text-slate-700">Best choice</Badge> : null}
                             </div>
                             <h2 className="text-lg font-extrabold uppercase tracking-wide text-slate-950">

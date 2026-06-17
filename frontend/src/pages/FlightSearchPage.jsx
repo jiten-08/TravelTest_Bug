@@ -14,7 +14,7 @@ const initialForm = {
   destination: '',
   departureDate: '',
   passengers: '1',
-  travelClass: 'Economy',
+  travelClass: 'all',
 };
 
 function validateSearch(form) {
@@ -243,7 +243,7 @@ function FlightSearchPage() {
                 value={form.travelClass}
                 onChange={updateField}
                 className="mt-2"
-                options={travelClasses.map((tc) => ({ value: tc, label: tc }))}
+                options={[{ value: 'all', label: 'All classes' }, ...travelClasses.map((tc) => ({ value: tc, label: tc }))]}
                 data-testid="flight-class-dropdown"
               />
               {errors.travelClass ? (

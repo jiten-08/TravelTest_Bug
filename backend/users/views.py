@@ -1,5 +1,6 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -11,6 +12,22 @@ from .serializers import UserSerializer, UserCreateSerializer
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
+        username = attrs.get(self.username_field, '').strip()
+        password = attrs.get('password', '')
+
+        user = None
+        if username:
+            user = User.objects.filter(email__iexact=username).first() or User.objects.filter(username__iexact=username).first()
+
+        if not user:
+            raise AuthenticationFailed('No account found with this email. Please register first.')
+
+        if not user.check_password(password):
+            raise AuthenticationFailed('Incorrect password. Please try again.')
+
+        if not user.is_active:
+            raise AuthenticationFailed('This account is inactive. Please contact support.')
+
         data = super().validate(attrs)
         data.update({
             'user': {
