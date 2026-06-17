@@ -23,7 +23,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             raise AuthenticationFailed('No account found with this email. Please register first.')
 
         if not user.check_password(password):
-            raise AuthenticationFailed('Incorrect password. Please try again.')
+            raise AuthenticationFailed('Incorrect email or password. Please try again.')
 
         if not user.is_active:
             raise AuthenticationFailed('This account is inactive. Please contact support.')
