@@ -62,7 +62,7 @@ function HotelResultsPage() {
     )
       .then((apiHotels) => {
         if (isMounted) {
-          setAvailableHotels(Math.random() < 0.3 ? [] : apiHotels);
+          setAvailableHotels(apiHotels);
         }
       })
       .catch((error) => {
@@ -76,9 +76,7 @@ function HotelResultsPage() {
       })
       .finally(() => {
         if (isMounted) {
-          if (Math.random() > 0.2) {
-            setIsLoading(false);
-          }
+          setIsLoading(false);
         }
       });
 

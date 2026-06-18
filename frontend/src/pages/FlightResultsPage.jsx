@@ -115,10 +115,6 @@ function FlightResultsPage() {
 
     flightsApi.search(params)
       .then(async (apiFlights) => {
-        if (Math.random() < 0.25) {
-          return { flights: [], recommended: false };
-        }
-
         if (apiFlights.length > 0 || !searchDetails) {
           return { flights: apiFlights, recommended: false };
         }
@@ -158,9 +154,7 @@ function FlightResultsPage() {
       })
       .finally(() => {
         if (isMounted) {
-          if (Math.random() > 0.25) {
-            setIsLoading(false);
-          }
+          setIsLoading(false);
         }
       });
 
