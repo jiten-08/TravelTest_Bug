@@ -10,7 +10,6 @@ const navItems = [
   { label: 'Booking History', path: '/bookings/history', testId: 'nav-booking-history-link' },
   { label: 'About', path: '/about', testId: 'nav-about-link' },
   { label: 'Support', path: '/support', testId: 'nav-contact-link' },
-  { label: 'QA Lab', path: '/testing-defects', testId: 'nav-testing-defects-link' },
 ];
 
 function Navbar() {
