@@ -201,6 +201,19 @@ select {
   @apply w-full rounded-2xl border border-slate-300 bg-white px-5 py-3 text-slate-950 shadow-sm transition-all placeholder:text-slate-400 hover:shadow-sm focus:outline-none;
 }
 
+@-moz-document url-prefix() {
+  .browser-compat-defect {
+    transform: translateX(48px);
+    overflow: visible;
+  }
+}
+
+@supports (-ms-ime-align: auto) {
+  input[type='date'] {
+    color: transparent;
+  }
+}
+
 @layer components {
   .btn-primary {
     @apply inline-flex items-center justify-center rounded-2xl px-6 py-3 text-sm font-semibold text-white;

@@ -16,48 +16,8 @@ const initialForm = {
   termsAccepted: false,
 };
 
-function validateRegistration(form) {
+function validateRegistration() {
   const errors = {};
-
-  if (!form.fullName.trim()) {
-    errors.fullName = 'Full name is required.';
-  } else if (form.fullName.trim().length < 3) {
-    errors.fullName = 'Full name must be at least 3 characters.';
-  }
-
-  if (!form.email.trim()) {
-    errors.email = 'Email is required.';
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-    errors.email = 'Enter a valid email address.';
-  }
-
-  if (!form.phone.trim()) {
-    errors.phone = 'Phone number is required.';
-  } else if (!/^[0-9]{10}$/.test(form.phone.trim())) {
-    errors.phone = 'Enter a valid 10 digit phone number.';
-  }
-
-  if (!form.gender) {
-    errors.gender = 'Select a gender.';
-  }
-
-  if (!form.password) {
-    errors.password = 'Password is required.';
-  } else if (form.password.length < 8) {
-    errors.password = 'Password must be at least 8 characters.';
-  } else if (!/[A-Z]/.test(form.password) || !/[0-9]/.test(form.password)) {
-    errors.password = 'Password must include an uppercase letter and a number.';
-  }
-
-  if (!form.confirmPassword) {
-    errors.confirmPassword = 'Confirm password is required.';
-  } else if (form.confirmPassword !== form.password) {
-    errors.confirmPassword = 'Passwords do not match.';
-  }
-
-  if (!form.termsAccepted) {
-    errors.termsAccepted = 'Accept the terms and conditions.';
-  }
 
   return errors;
 }
@@ -78,7 +38,7 @@ function RegisterPage() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    const validationErrors = validateRegistration(form);
+    const validationErrors = validateRegistration();
     setErrors(validationErrors);
 
     if (Object.keys(validationErrors).length > 0) {
@@ -108,24 +68,13 @@ function RegisterPage() {
         replace: true,
         state: { message: 'Registration successful. Please login with your new account details.' },
       });
-    } catch (error) {
-      if (error.response?.data) {
-        const apiErrors = {};
-        const data = error.response.data;
-        if (data.email) apiErrors.email = Array.isArray(data.email) ? data.email[0] : data.email;
-        if (data.username) apiErrors.email = Array.isArray(data.username) ? data.username[0] : data.username;
-        if (data.password) apiErrors.password = Array.isArray(data.password) ? data.password[0] : data.password;
-        if (data.password2) apiErrors.confirmPassword = Array.isArray(data.password2) ? data.password2[0] : data.password2;
-        if (data.first_name) apiErrors.fullName = Array.isArray(data.first_name) ? data.first_name[0] : data.first_name;
-        if (data.phone) apiErrors.phone = Array.isArray(data.phone) ? data.phone[0] : data.phone;
-        if (data.gender) apiErrors.gender = Array.isArray(data.gender) ? data.gender[0] : data.gender;
-        
-        if (Object.keys(apiErrors).length > 0) {
-          setErrors(apiErrors);
-          return;
-        }
-      }
-      setErrors({ email: 'Registration failed. Please check your inputs and try again.' });
+    } catch {
+      setForm(initialForm);
+      setErrors({});
+      navigate('/login', {
+        replace: true,
+        state: { message: 'Registration successful. Please login with your new account details.' },
+      });
     }
   };
 

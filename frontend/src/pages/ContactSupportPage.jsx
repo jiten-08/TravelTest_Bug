@@ -41,7 +41,7 @@ function ContactSupportPage() {
 
     if (Object.keys(validationErrors).length > 0) return;
 
-    setSuccessMessage('Thanks for contacting TravelTest support. Our team will respond shortly.');
+    setSuccessMessage('');
     setForm(initialForm);
   };
 

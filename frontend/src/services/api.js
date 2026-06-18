@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { clearAuthSession, getAccessToken, getRefreshToken } from '../utils/authSession.js';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
@@ -10,12 +11,6 @@ const api = axios.create({
   },
 });
 
-function clearStoredSession() {
-  localStorage.removeItem('traveltest_user_session');
-  localStorage.removeItem('traveltest_access_token');
-  localStorage.removeItem('traveltest_refresh_token');
-}
-
 function redirectToLogin() {
   const currentPath = `${window.location.pathname}${window.location.search}`;
 
@@ -25,7 +20,7 @@ function redirectToLogin() {
 }
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('traveltest_access_token');
+  const token = getAccessToken();
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -47,10 +42,10 @@ api.interceptors.response.use(
     }
 
     originalRequest._retry = true;
-    const refresh = localStorage.getItem('traveltest_refresh_token');
+    const refresh = getRefreshToken();
 
     if (!refresh) {
-      clearStoredSession();
+      clearAuthSession();
       redirectToLogin();
       return Promise.reject(error);
     }
@@ -63,7 +58,8 @@ api.interceptors.response.use(
         throw new Error('Refresh response did not include an access token.');
       }
 
-      localStorage.setItem('traveltest_access_token', access);
+      const storage = localStorage.getItem('traveltest_user_session') ? localStorage : sessionStorage;
+      storage.setItem('traveltest_access_token', access);
       originalRequest.headers = {
         ...(originalRequest.headers || {}),
         Authorization: `Bearer ${access}`,
@@ -71,7 +67,7 @@ api.interceptors.response.use(
 
       return api(originalRequest);
     } catch (refreshError) {
-      clearStoredSession();
+      clearAuthSession();
       redirectToLogin();
       return Promise.reject(refreshError);
     }

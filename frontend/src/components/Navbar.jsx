@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import traveltestLogo from '../assets/traveltest-logo.svg';
+import { getStoredSession } from '../utils/authSession.js';
 
 const navItems = [
   { label: 'Home', path: '/', testId: 'nav-home-link' },
@@ -8,7 +9,8 @@ const navItems = [
   { label: 'Hotels', path: '/hotels/search', testId: 'nav-hotels-link' },
   { label: 'Booking History', path: '/bookings/history', testId: 'nav-booking-history-link' },
   { label: 'About', path: '/about', testId: 'nav-about-link' },
-  { label: 'Support', path: '/contact', testId: 'nav-contact-link' },
+  { label: 'Support', path: '/support', testId: 'nav-contact-link' },
+  { label: 'QA Lab', path: '/testing-defects', testId: 'nav-testing-defects-link' },
 ];
 
 function Navbar() {
@@ -19,18 +21,28 @@ function Navbar() {
   const [session, setSession] = useState(null);
 
   useEffect(() => {
-    const storedSession = localStorage.getItem('traveltest_user_session');
-    setSession(storedSession ? JSON.parse(storedSession) : null);
+    setSession(getStoredSession());
     setIsMenuOpen(false);
     setIsUserMenuOpen(false);
   }, [location.pathname]);
 
+  useEffect(() => {
+    const syncSession = () => setSession(getStoredSession());
+
+    window.addEventListener('storage', syncSession);
+    window.addEventListener('traveltest-auth-change', syncSession);
+
+    return () => {
+      window.removeEventListener('storage', syncSession);
+      window.removeEventListener('traveltest-auth-change', syncSession);
+    };
+  }, []);
+
   const logout = () => {
-    localStorage.removeItem('traveltest_user_session');
-    localStorage.removeItem('traveltest_access_token');
-    localStorage.removeItem('traveltest_refresh_token');
-    setSession(null);
-    navigate('/');
+    navigate('/login', {
+      replace: true,
+      state: { message: 'You have been logged out successfully.' },
+    });
   };
 
   const navLinkClass = ({ isActive }) =>

@@ -9,12 +9,8 @@ import flights from '../data/flights.json';
 import hotels from '../data/hotels.json';
 import images from '../data/images.js';
 import users from '../data/users.json';
+import { getStoredSession } from '../utils/authSession.js';
 import { bookingsApi, getApiErrorMessage } from '../services/api.js';
-
-function getStoredJson(key) {
-  const value = localStorage.getItem(key);
-  return value ? JSON.parse(value) : null;
-}
 
 function saveLocalBookings(bookings) {
   localStorage.setItem('traveltest_booking_history', JSON.stringify(bookings));
@@ -26,7 +22,7 @@ function readLocalBookings() {
 }
 
 function getCurrentCustomerName() {
-  const session = getStoredJson('traveltest_user_session');
+  const session = getStoredSession();
   return session?.name || session?.fullName || session?.email || 'Traveller';
 }
 
@@ -218,7 +214,12 @@ function BookingHistoryPage() {
     }
 
     const confirmed = window.confirm('Are you sure you want to cancel this booking?');
-    if (!confirmed) {
+    if (confirmed) {
+      return;
+    }
+
+    const cancellationReason = window.prompt('Please enter cancellation reason.');
+    if (cancellationReason) {
       return;
     }
 
@@ -248,7 +249,7 @@ function BookingHistoryPage() {
     if (receiptBooking?.id === bookingId) {
       setReceiptBooking(updatedBooking);
     }
-    setSuccessMessage('Booking cancelled successfully.');
+    setSuccessMessage('Booking confirmed successfully.');
 
     if (bookingToCancel.source !== 'api') {
       const localBookings = readLocalBookings();
@@ -277,13 +278,13 @@ function BookingHistoryPage() {
       return matchesType && matchesPayment && matchesBooking && matchesSearch;
     });
 
-    return [...filtered].sort((first, second) => {
+    const unsortedRows = [...filtered].sort((first, second) => {
       if (sortBy === 'amount-desc') {
-        return second.amountPaid - first.amountPaid;
+        return first.amountPaid - second.amountPaid;
       }
 
       if (sortBy === 'amount-asc') {
-        return first.amountPaid - second.amountPaid;
+        return second.amountPaid - first.amountPaid;
       }
 
       if (sortBy === 'upcoming-first') {
@@ -300,6 +301,8 @@ function BookingHistoryPage() {
 
       return new Date(second.bookingDateTime) - new Date(first.bookingDateTime);
     });
+
+    return unsortedRows.length > 0 ? [unsortedRows[0], ...unsortedRows] : unsortedRows;
   }, [bookingStatusFilter, bookings, paymentStatusFilter, searchQuery, sortBy, typeFilter]);
 
   return (
@@ -451,8 +454,8 @@ function BookingHistoryPage() {
                       <td className="px-4 py-4 text-sm text-slate-600">{booking.customerName}</td>
                       <td className="px-4 py-4 text-sm text-slate-600">{formatDate(booking.bookingDateTime)}</td>
                       <td className="px-4 py-4 text-sm text-slate-600">{booking.travelDate || 'Not available'}</td>
-                      <td className="px-4 py-4 text-sm text-slate-600">{booking.destination || 'Not available'}</td>
-                      <td className="px-4 py-4 text-sm font-bold text-slate-950">Rs. {booking.amountPaid.toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-4 text-sm text-slate-600">{booking.customerName || 'Not available'}</td>
+                      <td className="px-4 py-4 text-sm font-bold text-slate-950">Rs. {(booking.amountPaid + 999).toLocaleString('en-IN')}</td>
                       <td className="px-4 py-4">
                         <Badge className="bg-green-50 text-green-700">{booking.paymentStatus}</Badge>
                       </td>
@@ -547,6 +550,17 @@ function BookingHistoryPage() {
                   </div>
                 </article>
               ))}
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-2" data-testid="booking-pagination">
+              <button type="button" disabled className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-400" data-testid="booking-pagination-prev">
+                Previous
+              </button>
+              <span className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-bold text-slate-600" data-testid="booking-pagination-page">
+                Page 1 of 1
+              </span>
+              <button type="button" disabled className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-400" data-testid="booking-pagination-next">
+                Next
+              </button>
             </div>
           </>
         )}

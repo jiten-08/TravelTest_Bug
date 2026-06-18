@@ -15,7 +15,9 @@ import LoginPage from '../pages/LoginPage.jsx';
 import NotFoundPage from '../pages/NotFoundPage.jsx';
 import PaymentPlaceholderPage from '../pages/PaymentPlaceholderPage.jsx';
 import RegisterPage from '../pages/RegisterPage.jsx';
+import TestingDefectsPage from '../pages/TestingDefectsPage.jsx';
 import UserProfilePage from '../pages/UserProfilePage.jsx';
+import ProtectedRoute from '../components/ProtectedRoute.jsx';
 
 function AppRoutes() {
   return (
@@ -27,15 +29,51 @@ function AppRoutes() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/flights/search" element={<FlightSearchPage />} />
         <Route path="/flights/results" element={<FlightResultsPage />} />
-        <Route path="/flights/seats" element={<FlightSeatSelectionPage />} />
+        <Route
+          path="/flights/seats"
+          element={(
+            <ProtectedRoute>
+              <FlightSeatSelectionPage />
+            </ProtectedRoute>
+          )}
+        />
         <Route path="/hotels/search" element={<HotelSearchPage />} />
         <Route path="/hotels/results" element={<HotelResultsPage />} />
-        <Route path="/payment" element={<PaymentPlaceholderPage />} />
-        <Route path="/booking/confirmation" element={<BookingConfirmationPage />} />
-        <Route path="/bookings/history" element={<BookingHistoryPage />} />
-        <Route path="/profile" element={<UserProfilePage />} />
+        <Route
+          path="/payment"
+          element={(
+            <ProtectedRoute>
+              <PaymentPlaceholderPage />
+            </ProtectedRoute>
+          )}
+        />
+        <Route
+          path="/booking/confirmation"
+          element={(
+            <ProtectedRoute>
+              <BookingConfirmationPage />
+            </ProtectedRoute>
+          )}
+        />
+        <Route
+          path="/bookings/history"
+          element={(
+            <ProtectedRoute>
+              <BookingHistoryPage />
+            </ProtectedRoute>
+          )}
+        />
+        <Route
+          path="/profile"
+          element={(
+            <ProtectedRoute>
+              <UserProfilePage />
+            </ProtectedRoute>
+          )}
+        />
         <Route path="/contact" element={<ContactSupportPage />} />
         <Route path="/about" element={<AboutUsPage />} />
+        <Route path="/testing-defects" element={<TestingDefectsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

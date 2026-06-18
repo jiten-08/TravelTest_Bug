@@ -7,8 +7,6 @@ import flights from '../data/flights.json';
 import images from '../data/images.js';
 import { flightsApi } from '../services/api.js';
 
-const today = new Date().toISOString().split('T')[0];
-
 const initialForm = {
   source: '',
   destination: '',
@@ -24,18 +22,12 @@ function validateSearch(form) {
     errors.source = 'Select a source city.';
   }
 
-  if (!form.destination) {
-    errors.destination = 'Select a destination city.';
-  }
-
   if (form.source && form.destination && form.source === form.destination) {
     errors.destination = 'Source and destination cannot be the same.';
   }
 
   if (!form.departureDate) {
     errors.departureDate = 'Select a departure date.';
-  } else if (form.departureDate < today) {
-    errors.departureDate = 'Departure date cannot be in the past.';
   }
 
   if (!form.passengers) {
@@ -200,7 +192,6 @@ function FlightSearchPage() {
                 id="flight-departure-date-input"
                 name="departureDate"
                 type="date"
-                min={today}
                 value={form.departureDate}
                 onChange={updateField}
                 className="travel-field mt-2"

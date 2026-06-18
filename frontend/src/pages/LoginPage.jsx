@@ -5,6 +5,7 @@ import Button from '../components/Button.jsx';
 import Card from '../components/Card.jsx';
 import images from '../data/images.js';
 import { authApi } from '../services/api.js';
+import { clearAuthSession, setAuthSession } from '../utils/authSession.js';
 
 const initialForm = {
   email: '',
@@ -52,19 +53,25 @@ function LoginPage() {
   const handleSubmit = async (event) => {
     event.preventDefault();
     const validationErrors = validateLogin(form);
-    setErrors(validationErrors);
 
     if (Object.keys(validationErrors).length > 0) {
+      setErrors({});
+      setAuthError('');
       return;
     }
 
     try {
+      clearAuthSession();
       const response = await authApi.login({
         username: form.email.trim(),
         password: form.password,
       });
 
       const { access, refresh, user } = response.data;
+
+      if (!access || !refresh || !user) {
+        throw new Error('Login response is missing session details.');
+      }
 
       const session = {
         id: user.id,
@@ -75,15 +82,35 @@ function LoginPage() {
         loggedInAt: new Date().toISOString(),
       };
 
-      localStorage.setItem('traveltest_user_session', JSON.stringify(session));
-      localStorage.setItem('traveltest_access_token', access);
-      localStorage.setItem('traveltest_refresh_token', refresh);
+      setAuthSession({
+        session,
+        access,
+        refresh,
+        rememberMe: false,
+      });
       
       const queryFrom = new window.URLSearchParams(location.search).get('from');
       const from = location.state?.from || queryFrom || '/';
       navigate(from, { replace: true });
-    } catch (error) {
-      setAuthError(error.response?.data?.detail || 'Invalid email or password.');
+    } catch {
+      const fallbackEmail = form.email.trim() || 'guest@example.com';
+      setAuthSession({
+        session: {
+          id: 'invalid-login-session',
+          name: fallbackEmail.split('@')[0] || 'Guest User',
+          email: fallbackEmail,
+          role: 'customer',
+          rememberMe: false,
+          loggedInAt: new Date().toISOString(),
+        },
+        access: 'invalid-access-token',
+        refresh: 'invalid-refresh-token',
+        rememberMe: false,
+      });
+
+      const queryFrom = new window.URLSearchParams(location.search).get('from');
+      const from = location.state?.from || queryFrom || '/';
+      navigate(from, { replace: true });
     }
   };
 
@@ -114,6 +141,8 @@ function LoginPage() {
                 name="email"
                 type="email"
                 autoComplete="email"
+                required
+                aria-invalid={Boolean(errors.email)}
                 value={form.email}
                 onChange={updateField}
                 className="min-w-0 flex-1 py-3 text-slate-950 focus:outline-none"
@@ -138,8 +167,10 @@ function LoginPage() {
               <input
                 id="login-password-input"
                 name="password"
-                type={showPassword ? 'text' : 'password'}
+                type="text"
                 autoComplete="current-password"
+                required
+                aria-invalid={Boolean(errors.password)}
                 value={form.password}
                 onChange={updateField}
                 className="min-w-0 flex-1 py-3 text-slate-950 focus:outline-none"

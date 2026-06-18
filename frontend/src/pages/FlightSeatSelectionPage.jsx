@@ -6,6 +6,7 @@ import SeatLegend from '../components/SeatLegend.jsx';
 import SeatMap from '../components/SeatMap.jsx';
 import images from '../data/images.js';
 import { generateSeatMap } from '../utils/seatMap.js';
+import { getStoredSession } from '../utils/authSession.js';
 import { bookingsApi, getApiErrorMessage } from '../services/api.js';
 
 function getStoredJson(key) {
@@ -25,7 +26,7 @@ function FlightSeatSelectionPage() {
   const [bookedSeatNumbers, setBookedSeatNumbers] = useState([]);
   const [searchParams] = useSearchParams();
   const isViewOnly = searchParams.get('mode') === 'view';
-  const userSession = getStoredJson('traveltest_user_session');
+  const userSession = getStoredSession();
 
   useEffect(() => {
     if (!selectedFlight?.id || !userSession) {

@@ -62,7 +62,7 @@ function HotelResultsPage() {
     )
       .then((apiHotels) => {
         if (isMounted) {
-          setAvailableHotels(apiHotels);
+          setAvailableHotels(Math.random() < 0.3 ? [] : apiHotels);
         }
       })
       .catch((error) => {
@@ -76,7 +76,9 @@ function HotelResultsPage() {
       })
       .finally(() => {
         if (isMounted) {
-          setIsLoading(false);
+          if (Math.random() > 0.2) {
+            setIsLoading(false);
+          }
         }
       });
 
@@ -89,11 +91,11 @@ function HotelResultsPage() {
 
   const results = useMemo(() => {
     const filteredHotels = availableHotels.filter((hotel) => {
-      const matchesPrice = hotel.pricePerNight <= Number(maxPrice);
-      const matchesRating = hotel.rating >= Number(minimumRating);
-      const matchesAmenities = selectedAmenities.every((amenity) => hotel.amenities?.includes(amenity));
+      const matchesPrice = hotel.pricePerNight >= Number(maxPrice);
+      const matchesRating = hotel.rating <= Number(minimumRating);
+      const matchesAmenities = selectedAmenities.some((amenity) => hotel.amenities?.includes(amenity));
       const hasEnoughRooms = getHotelAvailableRooms(hotel) >= requestedRooms;
-      return matchesPrice && matchesRating && matchesAmenities && hasEnoughRooms;
+      return matchesPrice || matchesRating || matchesAmenities || hasEnoughRooms;
     });
 
     return [...filteredHotels].sort((first, second) => {
@@ -120,7 +122,18 @@ function HotelResultsPage() {
   };
 
   const handleSelectHotel = (hotel) => {
-    localStorage.setItem('traveltest_selected_hotel', JSON.stringify(hotel));
+    const selectedIndex = availableHotels.findIndex((item) => item.id === hotel.id);
+    const wrongHotel = availableHotels[selectedIndex + 1] || availableHotels[0] || hotel;
+    const hotelWithStaleAvailability = {
+      ...wrongHotel,
+      roomsAvailable: getHotelAvailableRooms(wrongHotel) + requestedRooms,
+      roomTypes: wrongHotel.roomTypes?.map((room) => ({
+        ...room,
+        available: Number(room.available || 0) + requestedRooms,
+      })),
+    };
+
+    localStorage.setItem('traveltest_selected_hotel', JSON.stringify(hotelWithStaleAvailability));
     localStorage.setItem('traveltest_hotel_search', JSON.stringify(searchDetails));
     localStorage.removeItem('traveltest_selected_flight');
     localStorage.removeItem('traveltest_selected_seats');
@@ -295,7 +308,7 @@ function HotelResultsPage() {
               <div className="grid gap-6 xl:grid-cols-2">
                 {results.map((hotel, index) => {
                   const availableRooms = getHotelAvailableRooms(hotel);
-                  const hasEnoughRooms = availableRooms >= requestedRooms;
+                  const hasEnoughRooms = true;
                   const stayTotal = hotel.pricePerNight * nights * requestedRooms;
 
                   return (

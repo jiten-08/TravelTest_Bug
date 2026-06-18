@@ -5,6 +5,7 @@ import Badge from '../components/Badge.jsx';
 import { authApi, bookingsApi } from '../services/api.js';
 import images from '../data/images.js';
 import FancySelect from '../components/FancySelect.jsx';
+import { getStoredSession, updateStoredSession } from '../utils/authSession.js';
 
 function getJson(key) {
   const value = localStorage.getItem(key);
@@ -12,7 +13,7 @@ function getJson(key) {
 }
 
 function UserProfilePage() {
-  const session = getJson('traveltest_user_session');
+  const session = getStoredSession();
   const [bookings, setBookings] = useState(getJson('traveltest_booking_history') || []);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -116,7 +117,7 @@ function UserProfilePage() {
         gender: user.gender || '',
       };
       
-      localStorage.setItem('traveltest_user_session', JSON.stringify(updatedSession));
+      updateStoredSession(updatedSession);
       setSuccessMessage('Profile changes saved successfully.');
       
       // eslint-disable-next-line no-undef

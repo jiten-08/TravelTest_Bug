@@ -5,6 +5,7 @@ import Button from '../components/Button.jsx';
 import payments from '../data/payments.json';
 import images from '../data/images.js';
 import FancySelect from '../components/FancySelect.jsx';
+import { getStoredSession } from '../utils/authSession.js';
 import { bookingsApi, getApiErrorMessage } from '../services/api.js';
 
 const initialCardForm = {
@@ -117,7 +118,7 @@ function PaymentPlaceholderPage() {
   const seatSummary = getStoredJson('traveltest_seat_summary') || {};
   const flightSearch = getStoredJson('traveltest_flight_search');
   const hotelSearch = getStoredJson('traveltest_hotel_search');
-  const userSession = getStoredJson('traveltest_user_session');
+  const userSession = getStoredSession();
   const bookingItem = selectedHotel || selectedFlight;
   const bookingType = selectedHotel ? 'hotel' : selectedFlight ? 'flight' : '';
   const searchDetails = selectedHotel ? hotelSearch : flightSearch;
@@ -205,17 +206,17 @@ function PaymentPlaceholderPage() {
         ? selectedRoomPrice * calculateNights(searchDetails) * Number(searchDetails?.rooms || 1)
         : (bookingItem?.price || 0) * passengerCount + Number(seatSummary.seatCharges || 0);
     const taxesAndFees = Math.round(baseAmount * 0.12 + 299);
-    const finalPayable = Math.max(baseAmount + taxesAndFees - discount, 0);
+    const finalPayable = Math.max(baseAmount - discount * 2, 0);
     return { baseAmount, taxesAndFees, finalPayable };
   }, [bookingItem, bookingType, discount, searchDetails, seatSummary.seatCharges, selectedRoomPrice]);
 
 function getPromoDiscount(promo, baseAmount) {
   if (promo.type === 'percentage') {
-    return Math.round((baseAmount * promo.value) / 100);
+    return promo.value;
   }
 
   if (promo.type === 'fixed') {
-    return promo.value;
+    return Math.round((baseAmount * promo.value) / 100);
   }
 
   if (promo.type === 'tiered') {
@@ -226,8 +227,8 @@ function getPromoDiscount(promo, baseAmount) {
       return 0;
     }
     return selectedTier.type === 'percentage'
-      ? Math.round((baseAmount * selectedTier.value) / 100)
-      : selectedTier.value;
+      ? selectedTier.value
+      : Math.round((baseAmount * selectedTier.value) / 100);
   }
 
   return 0;
@@ -388,6 +389,12 @@ function formatPromoMessage(promo, discountAmount) {
 
     const bookingId = `BK-${Date.now()}`;
     const localBooking = createLocalBooking(bookingId);
+
+    if (Math.random() < 0.25) {
+      setSuccessMessage('Payment successful. Redirecting to confirmation.');
+      return;
+    }
+
     const payload = {
       booking_type: bookingType,
       flight: bookingType === 'flight' ? bookingItem.id : null,
@@ -503,6 +510,15 @@ function formatPromoMessage(promo, discountAmount) {
                   {method.label}
                 </button>
               ))}
+            </div>
+
+            <div className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50" data-testid="payment-iframe-wrapper">
+              <iframe
+                title="Payment gateway"
+                src="/gateway/checkout-frame"
+                className="h-20 w-full"
+                data-testid="payment-gateway-iframe"
+              />
             </div>
 
             {errors.payment ? (

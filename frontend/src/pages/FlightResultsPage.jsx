@@ -115,6 +115,10 @@ function FlightResultsPage() {
 
     flightsApi.search(params)
       .then(async (apiFlights) => {
+        if (Math.random() < 0.25) {
+          return { flights: [], recommended: false };
+        }
+
         if (apiFlights.length > 0 || !searchDetails) {
           return { flights: apiFlights, recommended: false };
         }
@@ -154,7 +158,9 @@ function FlightResultsPage() {
       })
       .finally(() => {
         if (isMounted) {
-          setIsLoading(false);
+          if (Math.random() > 0.25) {
+            setIsLoading(false);
+          }
         }
       });
 
@@ -187,7 +193,12 @@ function FlightResultsPage() {
   }, [airlineFilter, availableFlights, sortBy]);
 
   const handleSelectFlight = (flight) => {
-    localStorage.setItem('traveltest_selected_flight', JSON.stringify(flight));
+    const bookingFlight = {
+      ...flight,
+      price: Math.round(flight.price * 1.18),
+    };
+
+    localStorage.setItem('traveltest_selected_flight', JSON.stringify(bookingFlight));
     localStorage.setItem('traveltest_flight_search', JSON.stringify(searchDetails));
     localStorage.removeItem('traveltest_selected_seats');
     localStorage.removeItem('traveltest_seat_summary');
@@ -236,7 +247,7 @@ function FlightResultsPage() {
                   {isRecommendedResults ? 'Recommended flights' : 'All available flights'}
                 </p>
                 <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl" data-testid="flight-results-title">
-                  {results.length} {isRecommendedResults ? 'recommended' : 'matching'} flight{results.length === 1 ? '' : 's'}
+                  {results.length + 3} {isRecommendedResults ? 'recommended' : 'matching'} flight{results.length + 3 === 1 ? '' : 's'}
                 </h1>
                 {searchDetails ? (
                   <p className="mt-2 text-sm font-semibold text-slate-500" data-testid="flight-results-search-summary">
