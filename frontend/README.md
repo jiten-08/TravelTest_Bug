@@ -53,7 +53,7 @@ The frontend currently reads sample JSON from `src/data`. `src/services/api.js` 
 Set the backend URL later with:
 
 ```bash
-VITE_API_BASE_URL=https://traveltest-xzgo.onrender.com/api
+VITE_API_BASE_URL=https://traveltest-bug.onrender.com/api
 ```
 
 ## Selenium Practice Convention
